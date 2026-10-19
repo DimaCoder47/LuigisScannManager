@@ -106,8 +106,8 @@ function isValidBinId(code) {
     // Paletten-Schema (7 Zeichen): D6 + 5 Ziffern (z. B. D610101)
     const palletRegex = /^D6\d{5}$/;
 
-    // Regal-Schema (7 Zeichen): D0 + 5 Ziffern (z. B. D010101)
-    const shelfRegex = /^D0\d{5}$/;
+    // Regal-Schema (7 Zeichen): D1 + 5 Ziffern (z. B. D160107)
+    const shelfRegex = /^D1\d{5}$/;
 
     return palletRegex.test(cleanCode) || shelfRegex.test(cleanCode);
 }
@@ -476,7 +476,7 @@ function startCamera() {
     // 1. Nur Code 39 (Code 3 of 9) als einziges Format erlauben
     const hints = new Map();
     const formats = [
-        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.CODE_128,
     ];
     hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
 
@@ -943,20 +943,46 @@ document.getElementById('backToAppBtn')?.addEventListener('click', () => {
 });
 
 if (sendEmailBtn) {
-    sendEmailBtn.addEventListener('click', () => {
+    sendEmailBtn.addEventListener('async', async () => { // async hinzugefügt für Teilen-Funktion
         const totalScans = scanRecords.length;
         if (totalScans === 0) {
             showToast('E-Mail nicht möglich', 'Keine Daten vorhanden.', 'error');
             return;
         }
+
         // Zeitstempel über Hilfsfunktion abrufen
         const { dateCode, dateDotted, timeCode } = getFormattedTimestamp();
         const fileName = `PutAway_${dateCode}_${timeCode}.html`;
-        const subject = encodeURIComponent(`PutAway - ${dateDotted} - ${totalScans} Scans`);
-        const bodyText = encodeURIComponent(`Hallo,\n\nanbei die interaktive Datei mit ${totalScans} Scans für die Umbuchung.\n\nViele Grüße`);
+        const subjectText = `PutAway - ${dateDotted} (${totalScans} Scans)`;
+        const bodyTextRaw = `Hallo,\n\nanbei die interaktive Datei mit ${totalScans} Scans für die Umbuchung.\n\nViele Grüße`;
 
-        // HTML-Datei erzeugen & Download auslösen
-        const blob = new Blob([buildExportHtml(scanRecords)], { type: 'text/html;charset=utf-8' });
+        // HTML-Datei aus deinen Scans erzeugen
+        const htmlContent = buildExportHtml(scanRecords);
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        const file = new File([blob], fileName, { type: 'text/html' });
+
+        // 1. MOBILE SMARTPHONES (Android & iOS Web Share API)
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: subjectText,
+                    text: bodyTextRaw
+                });
+                showToast('Export erfolgreich', 'Datei bereit zum Senden!', 'success');
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error('Fehler beim Teilen:', err);
+                    showToast('Fehler', 'Teilen fehlgeschlagen.', 'error');
+                }
+            }
+            return;
+        }
+
+        // 2. FALLBACK FÜR PC (Klassischer Download + mailto)
+        const subject = encodeURIComponent(subjectText);
+        const bodyText = encodeURIComponent(bodyTextRaw);
+
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = fileName;
@@ -964,7 +990,7 @@ if (sendEmailBtn) {
         link.click();
         document.body.removeChild(link);
 
-        // E-Mail-Client öffnen & Feedback anzeigen
+        // E-Mail-Client öffnen
         window.open(`mailto:?subject=${subject}&body=${bodyText}`, '_blank');
         showToast('Export gestartet', 'HTML-Datei heruntergeladen & E-Mail geöffnet!', 'success');
     });
