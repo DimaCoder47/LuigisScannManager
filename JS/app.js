@@ -943,7 +943,7 @@ document.getElementById('backToAppBtn')?.addEventListener('click', () => {
 });
 
 if (sendEmailBtn) {
-    sendEmailBtn.addEventListener('async', async () => { // async hinzugefügt für Teilen-Funktion
+    sendEmailBtn.addEventListener('click', async () => { // async hinzugefügt für Teilen-Funktion
         const totalScans = scanRecords.length;
         if (totalScans === 0) {
             showToast('E-Mail nicht möglich', 'Keine Daten vorhanden.', 'error');
