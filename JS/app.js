@@ -54,7 +54,6 @@ let cachedAudioCtx = null;
 /* ======================= */
 /*         LIFECYCLE       */
 /* ======================= */
-// scanRecords, activeBinId, persistData(), refreshAppState() sowie die DOMContentLoaded- und pageshow-Listener.
 
 // Setzt die aktive BIN ID und wechselt den Modus
 function setActiveBinId(binId) {
@@ -97,7 +96,6 @@ window.addEventListener('pageshow', () => {
 /* ==================================== */
 /*       PURE HELPER & VALIDATOREN      */
 /* ==================================== */
-// isValidBinId, isValidSN, getFormattedTimestamp, escapeHtml.
 
 // 1. Prüft gültige BIN ID (Palette oder Regal)
 function isValidBinId(code) {
@@ -146,7 +144,6 @@ function escapeHtml(str) {
 /* ================================= */
 /*      FEEDBACK & SIGNAL-SYSTEM     */
 /* ================================= */
-// triggerHaptic, playBeep, showToast
 
 async function triggerHaptic(type = 'success') {
     try {
@@ -181,7 +178,7 @@ async function triggerHaptic(type = 'success') {
 // --- ZENTRALER TON-HELFER ---
 function playBeep(type = 'success') {
     try {
-   // AudioContext einmalig initialisieren und für alle weiteren Beeps wiederverwenden
+        // AudioContext einmalig initialisieren und für alle weiteren Beeps wiederverwenden
         if (!cachedAudioCtx) {
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             if (AudioContextClass) {
@@ -251,7 +248,7 @@ function showErrorSignal(message) {
 }
 
 function showToast(title, message, type = 'success') {
-// Prüfen, ob das Scanner-Overlay aktuell auf dem Bildschirm sichtbar ist
+    // Prüfen, ob das Scanner-Overlay aktuell auf dem Bildschirm sichtbar ist
     const scannerOverlay = document.getElementById('scannerOverlay');
     const isScannerActive = scannerOverlay && !scannerOverlay.classList.contains('hidden');
     if (isScannerActive) {
@@ -326,7 +323,6 @@ function showToast(title, message, type = 'success') {
 /* =================================== */
 /*      Daten & Tabellen-Management    */
 /* =================================== */
-// processScannedCode, addSnToTable, renderTable, deleteRecord.
 
 // HAUPTFUNKTION: Verarbeitet den gescannten Code
 function processScannedCode(scannedCode) {
@@ -470,10 +466,9 @@ function highlightDuplicateRow(rowElement) {
 /* ==================================== */
 /*        Kamera & ZXING-SCANNER        */
 /* ==================================== */
-// startCamera, stopCamera, triggerHardwareScan.
 
 function startCamera() {
-    // 1. Nur Code 39 (Code 3 of 9) als einziges Format erlauben
+    // 1. Nur Code 128 als einziges Format erlauben
     const hints = new Map();
     const formats = [
         ZXing.BarcodeFormat.CODE_128,
@@ -505,13 +500,8 @@ function startCamera() {
                 const points = result.getResultPoints();
 
                 if (points && points.length > 0) {
-                    // Wir prüfen mindestens einen Punkt des Barcodes gegen die Box-Koordinaten
-                    // Da die Video-Anzeige skaliert ist, nutzen wir die clientX/clientY-Prüfung oder Punkt-Normalisierung.
-                    // Ein robuster Ansatz für Web/Mobile: Prüfen ob Result-Points im relativen Bildschirmbereich liegen.
                     const videoRect = videoEl.getBoundingClientRect();
 
-                    // Umrechnung der Video-Pixelpunkte auf die tatsächliche Display-Größe
-                    // (ZXing liefert Punkte im nativen Video-Koordinatensystem)
                     const scaleX = videoRect.width / videoEl.videoWidth;
                     const scaleY = videoRect.height / videoEl.videoHeight;
 
@@ -520,7 +510,6 @@ function startCamera() {
                         const screenX = videoRect.left + (point.getX() * scaleX);
                         const screenY = videoRect.top + (point.getY() * scaleY);
 
-                        // Prüfen, ob der Punkt innerhalb des Zielrahmens (targetScanBox) liegt
                         if (
                             screenX >= boxRect.left &&
                             screenX <= boxRect.right &&
@@ -532,7 +521,6 @@ function startCamera() {
                         }
                     }
 
-                    // Wenn der Barcode NICHT im roten Rahmen liegt, ignorieren wir ihn einfach!
                     if (!isInside) {
                         return;
                     }
@@ -573,7 +561,6 @@ function startCamera() {
 
         const closeBtn = document.getElementById('closeFullscreenBtn');
         if (closeBtn) closeBtn.classList.remove('hidden');
-
 
         if (toggleCameraBtn) {
             toggleCameraBtn.classList.add('hidden');
@@ -626,7 +613,6 @@ function stopCamera() {
 window.triggerHardwareScan = function () {
     console.log("Hardware-Taste (Leiser) gedrückt!");
 
-    // Wenn die Kamera aktiv ist und ein Code im Fokus steht / erfasst wurde
     if (isCameraActive && lastScannedCode) {
         processScannedCode(lastScannedCode);
         showToast('Code erfasst (Hardware)', lastScannedCode, 'success');
@@ -640,20 +626,17 @@ window.triggerHardwareScan = function () {
 /* ================================= */
 /*           HTML BUILDER            */
 /* ================================= */
+
 function buildExportHtml(records) {
     const todayFormatted = new Date().toLocaleDateString('de-DE');
-    const totalScans = records.length;
     const sortedRecords = [...records].reverse();
 
     let previousBinId = null;
 
-    // Tabellenzeilen generieren
     const tableRowsHtml = sortedRecords.map((record, index) => {
-        // Prüfen, ob ein neuer BIN-Block beginnt (Wechsel des Lagerplatzes)
         const isNewBlock = previousBinId !== null && record.binId !== previousBinId;
         previousBinId = record.binId;
 
-        // Styling für die Trennlinie: Bei neuem Block eine dicke, dunkle Linie
         const rowStyle = isNewBlock
             ? `border-top: 4px solid ${EXPORT_COLORS.borderDark}; background-color: ${index % 2 === 0 ? EXPORT_COLORS.bg : EXPORT_COLORS.zebraBg};`
             : `border-top: 1px solid ${EXPORT_COLORS.borderDark}; background-color: ${index % 2 === 0 ? EXPORT_COLORS.bg : EXPORT_COLORS.zebraBg};`;
@@ -703,13 +686,6 @@ function buildExportHtml(records) {
             margin-bottom: 20px;
         }
         h1 { font-size: 20px; margin: 0; color: ${EXPORT_COLORS.text}; }
-        .badge {
-            background-color: ${EXPORT_COLORS.border};
-            padding: 4px 12px;
-            border-radius: 9999px;
-            font-size: 13px;
-            font-weight: 600;
-        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -760,20 +736,17 @@ function buildExportHtml(records) {
     </div>
     <script>
 function copyText(text, btn) {
-            // Hilfsfunktion für das visuelle Feedback (Häkchen)
             function showSuccess() {
                 const orig = btn.innerText;
                 btn.innerText = '✅';
                 setTimeout(() => { btn.innerText = orig; }, 1000);
             }
 
-            // Versuch 1: Moderne Clipboard API
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(text).then(showSuccess).catch(() => {
                     fallbackCopy(text);
                 });
             } else {
-                // Versuch 2: Ausweichmethode für unsichere Umgebungen / Popups
                 fallbackCopy(text);
             }
 
@@ -799,9 +772,7 @@ function copyText(text, btn) {
 /* ========================================== */
 /*     UI-EVENT-LISTENER & INITIALISIERUNG    */
 /* ========================================== */
-// showOverview, hideOverview, captureScanBtn, closeFullscreenBtn, toggleCameraBtn, manualInputForm, clearBtn, exportViewBtn, sendEmailBtn, copyClipboardBtn
 
-// Funktion zum Öffnen der Übersicht
 function showOverview() {
     const htmlContent = buildExportHtml(scanRecords);
 
@@ -812,12 +783,10 @@ function showOverview() {
         iframe.className = 'w-full border-0 bg-white rounded-lg';
         iframe.srcdoc = htmlContent;
 
-        // MAGIE: Höhe automatisch an den Inhalt anpassen, sobald das Iframe lädt
         iframe.onload = () => {
             try {
                 const doc = iframe.contentDocument || iframe.contentWindow.document;
                 if (doc && doc.body) {
-                    // Setzt die Iframe-Höhe exakt auf die Höhe der Tabellen-Inhalte
                     iframe.style.height = doc.body.scrollHeight + 'px';
                 }
             } catch (e) {
@@ -828,7 +797,6 @@ function showOverview() {
         container.appendChild(iframe);
     }
 
-    // Ansichten umschalten: Hauptseite verstecken, Übersicht einblenden
     const mainView = document.getElementById('mainAppView');
     const overviewView = document.getElementById('overviewView');
     if (mainView) mainView.classList.add('hidden');
@@ -838,7 +806,6 @@ function showOverview() {
     showToast('Übersicht geöffnet', 'Tabellenansicht wurde geladen.', 'success');
 }
 
-// Funktion zum Schließen der Übersicht und Rückkehr zur Homepage
 function hideOverview() {
     const mainView = document.getElementById('mainAppView');
     const overviewView = document.getElementById('overviewView');
@@ -851,21 +818,16 @@ function hideOverview() {
 const captureScanBtn = document.getElementById('captureScanBtn');
 if (captureScanBtn) {
     captureScanBtn.addEventListener('click', () => {
-        // 1. Scanner für den nächsten Barcode freischalten
         canProcessScan = true;
-        // 2. Prüfen, ob die Kamera aktuell einen Code im Blick hat
         if (lastScannedCode) {
             processScannedCode(lastScannedCode);
             showToast('Code erfasst', lastScannedCode, 'success');
         } else {
-            // Optional: Wenn man drückt, aber kein Code da ist, 
-            // kannst du hier auch direkt deinen Error-Beep/Haptic triggern, falls gewollt!
             showToast('Kein Code', 'Bitte halte die Kamera über einen Barcode.', 'error');
         }
     });
 }
 
-// Stopp die Kamera nach X
 const closeFullscreenBtn = document.getElementById('closeFullscreenBtn');
 if (closeFullscreenBtn) {
     closeFullscreenBtn.addEventListener('click', () => {
@@ -873,7 +835,6 @@ if (closeFullscreenBtn) {
     });
 }
 
-// UI-Schnittstelle: Kamera umschalten
 const toggleCameraBtn = document.getElementById('toggleCameraBtn');
 if (toggleCameraBtn) {
     toggleCameraBtn.addEventListener('click', async () => {
@@ -881,7 +842,6 @@ if (toggleCameraBtn) {
             stopCamera();
         } else {
             try {
-                // Aktiv die Berechtigung vom Android-System anfordern
                 await navigator.mediaDevices.getUserMedia({ video: true });
                 startCamera();
             } catch (err) {
@@ -901,7 +861,6 @@ if (manualInputForm) {
             processScannedCode(val);
             manualInput.value = '';
 
-            // Mit kurzer Verzögerung den Fokus erzwingen, damit die Handytastatur garantiert offen bleibt
             setTimeout(() => {
                 manualInput.focus();
             }, 100);
@@ -937,31 +896,59 @@ if (exportViewBtn) {
     });
 }
 
-// Event-Listener für den Zurück-Button in der Übersicht
 document.getElementById('backToAppBtn')?.addEventListener('click', () => {
     hideOverview();
 });
 
+// E-Mail-Export mit robuster Capacitor- / Web-Fall-Back-Prüfung
 if (sendEmailBtn) {
-    sendEmailBtn.addEventListener('click', async () => { // async hinzugefügt für Teilen-Funktion
+    sendEmailBtn.addEventListener('click', async () => {
         const totalScans = scanRecords.length;
         if (totalScans === 0) {
             showToast('E-Mail nicht möglich', 'Keine Daten vorhanden.', 'error');
             return;
         }
 
-        // Zeitstempel über Hilfsfunktion abrufen
         const { dateCode, dateDotted, timeCode } = getFormattedTimestamp();
         const fileName = `PutAway_${dateCode}_${timeCode}.html`;
         const subjectText = `PutAway - ${dateDotted} (${totalScans} Scans)`;
         const bodyTextRaw = `Hallo,\n\nanbei die interaktive Datei mit ${totalScans} Scans für die Umbuchung.\n\nViele Grüße`;
-
-        // HTML-Datei aus deinen Scans erzeugen
         const htmlContent = buildExportHtml(scanRecords);
+
+        // 1. Sichere Entnahme der Capacitor-Plugins ohne ES-Module-Imports
+        const CapacitorPlugins = window.Capacitor && window.Capacitor.Plugins;
+        const Filesystem = CapacitorPlugins && CapacitorPlugins.Filesystem;
+        const Share = CapacitorPlugins && CapacitorPlugins.Share;
+        const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+
+        if (isNative && Filesystem && Share) {
+            try {
+                const fileResult = await Filesystem.writeFile({
+                    path: fileName,
+                    data: htmlContent,
+                    directory: 'CACHE' // Capacitor Cache-Ordner
+                });
+
+                await Share.share({
+                    title: subjectText,
+                    text: bodyTextRaw,
+                    url: fileResult.uri,
+                    dialogTitle: 'PutAway Export teilen'
+                });
+
+                showToast('Export erfolgreich', 'Datei bereit zum Senden!', 'success');
+                return;
+            } catch (err) {
+                console.error("Capacitor Native Export Fehler:", err);
+                showToast('Fehler', 'Nativer Export fehlgeschlagen.', 'error');
+                return;
+            }
+        }
+
+        // 2. Web-Fallback (Browser / PWA)
         const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
         const file = new File([blob], fileName, { type: 'text/html' });
 
-        // 1. MOBILE SMARTPHONES (Android & iOS Web Share API)
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             try {
                 await navigator.share({
@@ -972,14 +959,13 @@ if (sendEmailBtn) {
                 showToast('Export erfolgreich', 'Datei bereit zum Senden!', 'success');
             } catch (err) {
                 if (err.name !== 'AbortError') {
-                    console.error('Fehler beim Teilen:', err);
                     showToast('Fehler', 'Teilen fehlgeschlagen.', 'error');
                 }
             }
             return;
         }
 
-        // 2. FALLBACK FÜR PC (Klassischer Download + mailto)
+        // 3. Klassischer Download-Fallback für PC
         const subject = encodeURIComponent(subjectText);
         const bodyText = encodeURIComponent(bodyTextRaw);
 
@@ -990,7 +976,6 @@ if (sendEmailBtn) {
         link.click();
         document.body.removeChild(link);
 
-        // E-Mail-Client öffnen
         window.open(`mailto:?subject=${subject}&body=${bodyText}`, '_blank');
         showToast('Export gestartet', 'HTML-Datei heruntergeladen & E-Mail geöffnet!', 'success');
     });
@@ -1003,9 +988,8 @@ if (copyClipboardBtn) {
             showToast('Kopieren nicht möglich', 'Keine Daten vorhanden.', 'error');
             return;
         }
-        // 1. SCHRITT: Header ohne Zeit definieren (optional, nur BIN und SN)
+
         let text = 'BIN\tSeriennummer\n';
-        // dreht die Liste um (chronologisch von alt nach neu)
         [...scanRecords].reverse().forEach(r => {
             text += `${r.binId}\t${r.sn}\n`;
         });
@@ -1015,7 +999,6 @@ if (copyClipboardBtn) {
                 showToast('Kopiert!', 'Daten liegen in der Zwischenablage.', 'success');
             });
         } else {
-            // Fallback
             const textArea = document.createElement('textarea');
             textArea.value = text;
             document.body.appendChild(textArea);
