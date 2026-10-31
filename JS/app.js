@@ -926,7 +926,8 @@ if (sendEmailBtn) {
                 const fileResult = await Filesystem.writeFile({
                     path: fileName,
                     data: htmlContent,
-                    directory: 'CACHE' // Capacitor Cache-Ordner
+                    directory: Directory.Cache,
+                    encoding: 'utf8'
                 });
 
                 await Share.share({
