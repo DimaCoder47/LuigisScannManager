@@ -1,23 +1,19 @@
-// 1. Theme für die dunkle Web-App (UI)
+/* ================================= */
+/*           THEME & COLORS          */
+/* ================================= */
 const THEME_COLORS = {
-    duplicateBg: "#881337", // Kräftiges Karmesinrot
-    zebraBg: "#1e293b", // Slate-800 für Zebra
-    baseBg: "#0f172a", // Slate-900 als Basis
+    duplicateBg: "#881337",
+    zebraBg: "#1e293b",
+    baseBg: "#0f172a",
 };
 
-// 2. Theme speziell für den hellen Export / E-Mail-Druck (Export HTML)
 const EXPORT_COLORS = {
-    bg: "#ffffff", // Reines Weiß für Container & Standard-Zeilen
-    zebraBg: "#f8fafc", // Ganz zartes Hellgrau (Slate-50) für das Export-Zebra
-    text: "#0f172a", // Einziger Text-Ton für maximale Klarheit
-    border: "#e2e8f0", // Einheitliche, feine Linie für Ränder & th
-    borderDark: "#64748b" // Kräftige Linie beim Lagerplatzwechsel
+    bg: "#ffffff",
+    zebraBg: "#f8fafc",
+    text: "#0f172a",
+    border: "#e2e8f0", 
+    borderDark: "#64748b" 
 };
-
-// Beispiel für deine zukünftigen Event-Listener (ohne störende Alerts):
-document.addEventListener('DOMContentLoaded', () => {
-    // Hier kommen deine Button-Listener rein
-});
 
 /* ================================ */
 /*           DOM ELEMENTE           */
@@ -28,20 +24,26 @@ const scannerOverlay = document.getElementById('scannerOverlay');
 const videoContainer = document.getElementById('videoContainer');
 const manualInput = document.getElementById('manualInput');
 const activeBinDisplay = document.getElementById('activeBinDisplay');
-const scanModeBadge = document.getElementById('scanModeBadge');
 const exportViewBtn = document.getElementById('exportViewBtn');
-const backToScannerBtn = document.getElementById('backToScannerBtn');
 const scanTableBody = document.getElementById('scanTableBody');
 const scanCountBadge = document.getElementById('scanCountBadge');
 const sendEmailBtn = document.getElementById('sendEmailBtn');
 const copyClipboardBtn = document.getElementById('copyClipboardBtn');
+const clearBtn = document.getElementById('clearBtn');
+
+// Profil / Einstellungen
+const settingsBtn = document.getElementById('settingsBtn');
+const profileModal = document.getElementById('profileModal');
+const closeProfileBtn = document.getElementById('closeProfileBtn');
+const profileForm = document.getElementById('profileForm');
+const profileEmailInput = document.getElementById('profileEmailInput');
 
 /* ================================ */
 /*           STATE MANAGEMENT       */
 /* ================================ */
 let scanRecords = JSON.parse(localStorage.getItem('putaway_scan_records')) || [];
 let activeBinId = localStorage.getItem('putaway_active_bin') || null;
-let scanMode = activeBinId ? 'SN' : 'BIN';
+let userEmail = localStorage.getItem('putaway_user_email') || '';
 let codeReader = null;
 let isCameraActive = false;
 let lastScannedCode = '';
@@ -54,15 +56,12 @@ let cachedAudioCtx = null;
 /* ======================= */
 /*         LIFECYCLE       */
 /* ======================= */
-
-// Setzt die aktive BIN ID und wechselt den Modus
 function setActiveBinId(binId) {
     activeBinId = binId;
     if (activeBinDisplay) activeBinDisplay.textContent = activeBinId;
     persistData();
 }
 
-// Persistence Helper
 function persistData() {
     localStorage.setItem('putaway_scan_records', JSON.stringify(scanRecords));
     if (activeBinId) {
@@ -72,10 +71,10 @@ function persistData() {
     }
 }
 
-// Lädt den Speicherstand neu und zeichnet die Ansicht
 function refreshAppState() {
     scanRecords = JSON.parse(localStorage.getItem('putaway_scan_records')) || [];
     activeBinId = localStorage.getItem('putaway_active_bin') || null;
+    userEmail = localStorage.getItem('putaway_user_email') || '';
 
     if (activeBinDisplay) {
         activeBinDisplay.textContent = activeBinId ? activeBinId : '-- Nicht gesetzt --';
@@ -83,239 +82,133 @@ function refreshAppState() {
     renderTable();
 }
 
-// 1. Beim ersten Laden der Seite ausführen
-window.addEventListener('DOMContentLoaded', () => {
-    refreshAppState();
-});
-
-// 2. WICHTIG: Wenn der Nutzer aus der E-Mail-App / aus einem anderen Tab zurückkehrt
-window.addEventListener('pageshow', () => {
-    refreshAppState();
-});
+window.addEventListener('DOMContentLoaded', refreshAppState);
+window.addEventListener('pageshow', refreshAppState);
 
 /* ==================================== */
 /*       PURE HELPER & VALIDATOREN      */
 /* ==================================== */
-
-// 1. Prüft gültige BIN ID (Palette oder Regal)
+// Prefix D01–D72
 function isValidBinId(code) {
     const cleanCode = String(code).trim().toUpperCase();
-
-    // Paletten-Schema (7 Zeichen): D6 + 5 Ziffern (z. B. D610101)
-    const palletRegex = /^D6\d{5}$/;
-
-    // Regal-Schema (7 Zeichen): D1 + 5 Ziffern (z. B. D160107)
-    const shelfRegex = /^D1\d{5}$/;
-
-    return palletRegex.test(cleanCode) || shelfRegex.test(cleanCode);
+    // Validiert D01xxxxx bis D72xxxxx (Länge: 7 Zeichen)
+    return /^D(0[1-9]|[1-6]\d|7[0-2])\d{4}$/.test(cleanCode);
 }
 
-// 2. HELPER: Prüft, ob eine Seriennummer gültig ist (1 bis 25 Zeichen, Sonderzeichen erlaubt)
 function isValidSN(code) {
     if (!code) return false;
     const cleanCode = String(code).trim();
     return cleanCode.length > 0 && cleanCode.length <= 25;
 }
 
-// --- Zentraler Datum und Zeit Helfer ---
 function getFormattedTimestamp(date = new Date()) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
-
     return {
-        dateCode: `${year}${month}${day}`,// z. B. "20261009"
-        dateDotted: `${year}.${month}.${day}`,// z. B. "2026.10.09"
-        timeCode: `${hours}Uhr${minutes}`// z. B. "18Uhr54"
+        dateCode: `${year}${month}${day}`,
+        dateDotted: `${year}.${month}.${day}`,
+        timeCode: `${hours}Uhr${minutes}`
     };
 }
 
 function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
 /* ================================= */
 /*      FEEDBACK & SIGNAL-SYSTEM     */
 /* ================================= */
-
 async function triggerHaptic(type = 'success') {
     try {
-        // Kleine Verzögerung, damit sich Audio und Haptik nicht auf dem Main-Thread blockieren
         setTimeout(async () => {
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) {
-                const Haptics = window.Capacitor.Plugins.Haptics;
-
+            const h = window.Capacitor?.Plugins?.Haptics;
+            if (h) {
                 if (type === 'error' || type === 'duplicate') {
-                    // Doppelter Impuls für Fehler/Duplikat (Dauer in ms)
-                    await Haptics.vibrate({ duration: 80 });
-                    await new Promise(resolve => setTimeout(resolve, 80));
-                    await Haptics.vibrate({ duration: 80 });
-                } else {
-                    // Einfacher kurzer Impuls bei Erfolg
-                    await Haptics.vibrate({ duration: 80 });
-                }
+                    await h.vibrate({ duration: 80 });
+                    await new Promise(r => setTimeout(r, 80));
+                    await h.vibrate({ duration: 80 });
+                } else { await h.vibrate({ duration: 80 }); }
             } else if ('vibrate' in navigator) {
-                // Fallback für Browser
-                if (type === 'error' || type === 'duplicate') {
-                    navigator.vibrate([80, 50, 80]);
-                } else {
-                    navigator.vibrate(80);
-                }
+                if (type === 'error' || type === 'duplicate') navigator.vibrate([80, 50, 80]);
+                else navigator.vibrate(80);
             }
-        }, 30); // 30ms Versatz nach dem Ton
-    } catch (err) {
-        console.log('Haptik Fehler:', err);
-    }
+        }, 30);
+    } catch (e) {}
 }
 
-// --- ZENTRALER TON-HELFER ---
 function playBeep(type = 'success') {
     try {
-        // AudioContext einmalig initialisieren und für alle weiteren Beeps wiederverwenden
         if (!cachedAudioCtx) {
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-            if (AudioContextClass) {
-                cachedAudioCtx = new AudioContextClass();
-            }
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) cachedAudioCtx = new AC();
         }
+        const ctx = cachedAudioCtx;
+        if (!ctx) return;
+        if (ctx.state === 'suspended') ctx.resume();
 
-        const audioCtx = cachedAudioCtx;
-        if (!audioCtx) return;
-
-        // Falls der Kontext im Energiesparmodus ist, wieder aufwecken
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-
-        oscillator.type = 'sine';
-
-        // SCHRITT 1: Fester Zeit-Ankerpunkt für präzise Steuerung
-        const now = audioCtx.currentTime;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        const now = ctx.currentTime;
 
         if (type === 'error' || type === 'duplicate') {
-            // Einheitlicher, tiefer Ton (300 Hz) bei Fehlern & Duplikaten
-            oscillator.frequency.setValueAtTime(300, now);
-
-            // SCHRITT 2: Lautstärke-Muster für den Doppel-Beep (An-Aus-An-Aus)
-            gainNode.gain.setValueAtTime(0, now);          // Start bei 0
-            gainNode.gain.setValueAtTime(0.6, now);        // 1. Beep AN (0s)
-            gainNode.gain.setValueAtTime(0, now + 0.10);   // 1. Beep AUS (nach 0.10s)
-            gainNode.gain.setValueAtTime(0.6, now + 0.16); // 2. Beep AN (nach 0.16s)
-            gainNode.gain.setValueAtTime(0, now + 0.26);   // 2. Beep AUS (nach 0.26s)
-
+            osc.frequency.setValueAtTime(300, now);
+            g.gain.setValueAtTime(0, now);
+            g.gain.setValueAtTime(0.6, now);
+            g.gain.setValueAtTime(0, now + 0.10);
+            g.gain.setValueAtTime(0.6, now + 0.16);
+            g.gain.setValueAtTime(0, now + 0.26);
             triggerHaptic('error');
         } else {
-            // Heller, klarer Ton (A5) bei erfolgreichem Scan
-            oscillator.frequency.setValueAtTime(880, now);
-            gainNode.gain.setValueAtTime(0.5, now);
-
+            osc.frequency.setValueAtTime(880, now);
+            g.gain.setValueAtTime(0.5, now);
             triggerHaptic('success');
         }
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-
-        // SCHRITT 3: Start mit dem festen Zeit-Anker
-        oscillator.start(now);
-
-        // SCHRITT 4: Stopp-Zeit dynamisch anpassen (Erfolg = kurz, Fehler = lang genug für den Doppel-Beep)
-        const stopDuration = (type === 'error' || type === 'duplicate') ? 0.28 : 0.15;
-        oscillator.stop(now + stopDuration);
-
-    } catch (err) {
-        console.log('Audio konnte nicht abgespielt werden:', err);
-    }
-}
-
-// Erfolgs-Signal (Vibration + Toast)
-function showSuccessSignal(message) {
-    showToast('Erfolg', message, 'success');
-}
-
-// Fehler-Signal (Vibration + Toast)
-function showErrorSignal(message) {
-    showToast('Fehler', message, 'error');
+        osc.connect(g);
+        g.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + (type === 'error' ? 0.28 : 0.15));
+    } catch (e) {}
 }
 
 function showToast(title, message, type = 'success') {
-    // Prüfen, ob das Scanner-Overlay aktuell auf dem Bildschirm sichtbar ist
-    const scannerOverlay = document.getElementById('scannerOverlay');
-    const isScannerActive = scannerOverlay && !scannerOverlay.classList.contains('hidden');
-    if (isScannerActive) {
-        // --- ZENTRIERTER SCANNER-TOAST (Nur Success & Error) ---
-        const toastEl = document.getElementById('scannerToast');
-        const toastTitle = document.getElementById('scannerToastTitle');
-        const toastMessage = document.getElementById('scannerToastMessage');
-        const toastIcon = document.getElementById('scannerToastIcon');
+    const isScan = scannerOverlay && !scannerOverlay.classList.contains('hidden');
+    const toastEl = isScan ? document.getElementById('scannerToast') : document.getElementById('toast');
+    if (!toastEl) return;
 
-        if (!toastEl) return;
+    const tT = isScan ? document.getElementById('scannerToastTitle') : document.getElementById('toastTitle');
+    const tM = isScan ? document.getElementById('scannerToastMessage') : document.getElementById('toastMessage');
+    const tI = isScan ? document.getElementById('scannerToastIcon') : document.getElementById('toastIcon');
 
-        toastTitle.textContent = title;
-        toastMessage.textContent = message;
+    tT.textContent = title;
+    tM.textContent = message;
 
-        // Nur Erfolg oder Fehler im Scanner anzeigen
-        if (type === 'error') {
-            toastIcon.innerHTML = '⚠️';
-            toastEl.className = toastEl.className.replace(/border-\w+-\d+/, 'border-rose-500');
-        } else {
-            toastIcon.innerHTML = '✅';
-            toastEl.className = toastEl.className.replace(/border-\w+-\d+/, 'border-emerald-500');
-        }
+    if (type === 'error' || type === 'duplicate') {
+        tI.innerHTML = '⚠️';
+        toastEl.classList.replace('border-emerald-500', 'border-rose-500');
+    } else {
+        tI.innerHTML = '✅';
+        toastEl.classList.replace('border-rose-500', 'border-emerald-500');
+    }
 
-        // Einblenden in der Mitte
+    if (isScan) {
         toastEl.classList.remove('scale-0', 'opacity-0');
         toastEl.classList.add('scale-100', 'opacity-100');
-
         if (scannerToastTimeout) clearTimeout(scannerToastTimeout);
         scannerToastTimeout = setTimeout(() => {
-            toastEl.classList.remove('scale-100', 'opacity-100');
-            toastEl.classList.add('scale-0', 'opacity-0');
+            toastEl.classList.replace('scale-100', 'scale-0');
+            toastEl.classList.replace('opacity-100', 'opacity-0');
         }, 2500);
-
     } else {
-        // --- NORMALER DESKTOP-TOAST (Alle 3 Typen: success, error, info) ---
-        const toastEl = document.getElementById('toast'); // Hier liegt der normale Toast
-        if (!toastEl) return;
-
-        const toastTitle = document.getElementById('toastTitle');
-        const toastMessage = document.getElementById('toastMessage');
-        const toastIcon = document.getElementById('toastIcon');
-
-        toastTitle.textContent = title;
-        toastMessage.textContent = message;
-
-        if (type === 'success') {
-            toastIcon.innerHTML = '✅';
-            toastEl.className = toastEl.className.replace(/border-\w+-\d+/, 'border-emerald-500');
-        } else if (type === 'error') {
-            toastIcon.innerHTML = '⚠️';
-            toastEl.className = toastEl.className.replace(/border-\w+-\d+/, 'border-rose-500');
-        } else {
-            toastIcon.innerHTML = 'ℹ️';
-            toastEl.className = toastEl.className.replace(/border-\w+-\d+/, 'border-indigo-500');
-        }
-
-        // Einblenden via Tailwind-Transformationen
         toastEl.classList.remove('translate-y-20', 'opacity-0');
         toastEl.classList.add('translate-y-0', 'opacity-100');
-
-        // Alten Timer löschen, falls ein Toast bereits aktiv war
         if (toastTimeout) clearTimeout(toastTimeout);
-
-        // Nach 3 Sekunden automatisch wieder ausblenden
         toastTimeout = setTimeout(() => {
-            toastEl.classList.remove('translate-y-0', 'opacity-100');
-            toastEl.classList.add('translate-y-20', 'opacity-0');
+            toastEl.classList.replace('translate-y-0', 'translate-y-20');
+            toastEl.classList.replace('opacity-100', 'opacity-0');
         }, 3000);
     }
 }
@@ -323,224 +216,123 @@ function showToast(title, message, type = 'success') {
 /* =================================== */
 /*      Daten & Tabellen-Management    */
 /* =================================== */
-
-// HAUPTFUNKTION: Verarbeitet den gescannten Code
 function processScannedCode(scannedCode) {
     if (!scannedCode) return;
-
-    // Zentrales Trimmen (nur am Ende!)
     const cleanCode = String(scannedCode).trimEnd();
-    // Ist es eine BIN ID?
+    
     if (isValidBinId(cleanCode)) {
         setActiveBinId(cleanCode.toUpperCase());
-        showSuccessSignal(`BIN ID gesetzt: ${cleanCode.toUpperCase()}`);
+        showToast('Erfolg', `BIN ID gesetzt: ${cleanCode.toUpperCase()}`);
         playBeep();
         if (manualInput) manualInput.value = '';
         return;
     }
-    // Prüfen, ob bereits eine BIN ID aktiv ist -> FEHLER
+    
     if (!activeBinId) {
         playBeep('error');
-        showErrorSignal("Bitte zuerst eine gültige BIN ID scannen!");
+        showToast('Fehler', "Bitte zuerst eine gültige BIN ID scannen!", 'error');
         return;
     }
-    // Prüfen, ob die Seriennummer formal gültig ist -> FEHLER
+    
     if (!isValidSN(cleanCode)) {
         playBeep('error');
-        showErrorSignal("Ungültige Seriennummer (max. 25 Zeichen erlaubt)!");
+        showToast('Fehler', "Ungültige Seriennummer!", 'error');
         return;
     }
 
     const isDuplicate = scanRecords.some(record => record.sn === cleanCode);
-    addSnToTable(activeBinId, cleanCode, isDuplicate);
-    if (isDuplicate) {
-        // Dublette-Hinweis: Ton + Haptik-Impuls
-        playBeep('duplicate');
-        showToast('Hinweis', `SN ${cleanCode} ist eine Dublette!`, 'error');
-    } else {
-        // Normaler Erfolg: Heller Ton + kurzer Haptik-Impuls
-        playBeep('success');
-        showSuccessSignal(`SN erfasst: ${cleanCode}`);
-    }
-}
-
-// Speichert die gescannte Seriennummer im Array
-function addSnToTable(binId, snCode, isDuplicate = false) {
     const newRecord = {
         id: Date.now().toString(),
         timestamp: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        binId: binId,
-        sn: snCode,
+        binId: activeBinId,
+        sn: cleanCode,
         isDuplicate: isDuplicate
     };
 
     scanRecords.unshift(newRecord);
     persistData();
     renderTable();
+
+    if (isDuplicate) {
+        playBeep('duplicate');
+        showToast('Hinweis', `SN ${cleanCode} ist eine Dublette!`, 'error');
+    } else {
+        playBeep('success');
+        showToast('Erfolg', `SN erfasst: ${cleanCode}`);
+    }
 }
 
 function renderTable() {
+    if (!scanTableBody) return;
     scanTableBody.innerHTML = '';
     scanCountBadge.textContent = `${scanRecords.length} Scans`;
 
     if (scanRecords.length === 0) {
-        scanTableBody.innerHTML = `
-      <tr>
-        <td colspan="4" class="p-6 text-center text-slate-500 text-xs italic">
-          Noch keine Scans vorhanden. Scanne einen Code mit der Kamera oder nutze die manuelle Eingabe.
-        </td>
-      </tr>
-    `;
+        scanTableBody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 text-xs italic">Noch keine Scans vorhanden.</td></tr>`;
         return;
     }
 
-    // 1. SCHRITT: Zählen, wie oft jede Seriennummer im Array vorkommt
     const snCounts = {};
-    scanRecords.forEach(r => {
-        snCounts[r.sn] = (snCounts[r.sn] || 0) + 1;
-    });
+    scanRecords.forEach(r => snCounts[r.sn] = (snCounts[r.sn] || 0) + 1);
 
-    // index zur Schleife hinzugefügt (record, index)
     scanRecords.forEach((record, index) => {
         const tr = document.createElement('tr');
-        tr.id = `row-${record.id}`;
-
-        // 2. SCHRITT: data-sn Attribut setzen
-        tr.setAttribute('data-sn', record.sn);
-
-        // 3. SCHRITT: Prüfen, ob die SN mehr als 1x vorkommt
         const isDup = snCounts[record.sn] > 1;
-
-        // 4. SCHRITT: Doppelte SN rot markieren
-        if (isDup) {
-            tr.className = "border-b border-red-700 transition-colors";
-            tr.style.backgroundColor = THEME_COLORS.duplicateBg;
-            tr.style.color = THEME_COLORS.baseBg;
-        } else {
-            // Normale Zeile mit Zebra-Muster
-            tr.className = "border-b border-slate-700/50 transition-colors hover:bg-slate-700/30";
-            if (index % 2 === 0) {
-                tr.style.backgroundColor = THEME_COLORS.baseBg;
-            } else {
-                tr.style.backgroundColor = THEME_COLORS.zebraBg; // Sanft abgesetzter Zebra-Ton
-            }
-            tr.style.color = "";
-        }
-
+        
+        tr.className = isDup ? "border-b border-red-700 transition-colors" : "border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors";
+        tr.style.backgroundColor = isDup ? THEME_COLORS.duplicateBg : (index % 2 === 0 ? THEME_COLORS.baseBg : THEME_COLORS.zebraBg);
+        
         tr.innerHTML = `
             <td class="p-3 text-xs ${isDup ? 'text-red-200' : 'text-slate-400'}">${record.timestamp}</td>
             <td class="p-3 ${isDup ? 'text-white font-bold' : 'text-amber-400 font-bold'}">${escapeHtml(record.binId)}</td>
             <td class="p-3 font-semibold text-white">${escapeHtml(record.sn)}</td>
             <td class="p-3 text-right">
-                <button onclick="deleteRecord('${record.id}')" class="text-xs text-rose-300 hover:text-rose-100 p-1 rounded hover:bg-rose-900/60">
-                    🗑️
-                </button>
+                <button onclick="deleteRecord('${record.id}')" class="text-xs text-rose-300 p-1 rounded hover:bg-rose-900/60">🗑️</button>
             </td>
         `;
         scanTableBody.appendChild(tr);
     });
 }
 
-function deleteRecord(id) {
+window.deleteRecord = function(id) {
     scanRecords = scanRecords.filter(r => r.id !== id);
     persistData();
     renderTable();
-    showToast('Eintrag gelöscht', 'Die Zeile wurde entfernt.', 'info');
-}
-
-// 3. HELPER: Visuelle Hervorhebung einer doppelten Tabellenzeile
-function highlightDuplicateRow(rowElement) {
-    // Vorherige Warnungen entfernen
-    document.querySelectorAll('.duplicate-warning').forEach(el => el.classList.remove('duplicate-warning'));
-
-    // Zeile rot markieren und sanft ins Bild scrollen
-    rowElement.classList.add('duplicate-warning');
-    rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    // Nach 3 Sekunden die rote Markierung wieder entfernen
-    setTimeout(() => {
-        rowElement.classList.remove('duplicate-warning');
-    }, 3000);
-}
+    showToast('Gelöscht', 'Eintrag entfernt.', 'info');
+};
 
 /* ==================================== */
 /*        Kamera & ZXING-SCANNER        */
 /* ==================================== */
-
 function startCamera() {
-    // 1. Nur Code 128 als einziges Format erlauben
     const hints = new Map();
-    const formats = [
-        ZXing.BarcodeFormat.CODE_128,
-    ];
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-
-    // 2. Den Reader mit den Hints initialisieren
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128]);
     codeReader = new ZXing.BrowserMultiFormatReader(hints);
-
-    // 3. Kamera-Einstellungen für hohe Auflösung & scharfen Fokus definieren
-    const constraints = {
-        video: {
-            facingMode: "environment", // Nutzt direkt die Hauptkamera (Rückseite)
-            width: { ideal: 1280 },    // Höhere Auflösung für kleine Barcodes
-            height: { ideal: 720 },
-            advanced: [{ focusMode: "continuous" }]
-        }
-    };
+    const constraints = { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: "continuous" }] } };
 
     codeReader.decodeFromConstraints(constraints, 'video', (result, err) => {
-        if (result) {
-            if (!canProcessScan) return;
-
-            const targetBox = document.getElementById('targetScanBox');
-            const videoEl = document.getElementById('video');
-
-            if (targetBox && videoEl) {
-                const boxRect = targetBox.getBoundingClientRect();
-                const points = result.getResultPoints();
-
-                if (points && points.length > 0) {
-                    const videoRect = videoEl.getBoundingClientRect();
-
-                    const scaleX = videoRect.width / videoEl.videoWidth;
-                    const scaleY = videoRect.height / videoEl.videoHeight;
-
-                    let isInside = false;
-                    for (const point of points) {
-                        const screenX = videoRect.left + (point.getX() * scaleX);
-                        const screenY = videoRect.top + (point.getY() * scaleY);
-
-                        if (
-                            screenX >= boxRect.left &&
-                            screenX <= boxRect.right &&
-                            screenY >= boxRect.top &&
-                            screenY <= boxRect.bottom
-                        ) {
-                            isInside = true;
-                            break;
-                        }
-                    }
-
-                    if (!isInside) {
-                        return;
-                    }
+        if (result && canProcessScan) {
+            const tB = document.getElementById('targetScanBox');
+            if (tB && videoEl) {
+                const bR = tB.getBoundingClientRect();
+                const pts = result.getResultPoints();
+                const vR = videoEl.getBoundingClientRect();
+                const sX = vR.width / videoEl.videoWidth;
+                const sY = vR.height / videoEl.videoHeight;
+                let inside = false;
+                for (const p of pts) {
+                    const x = vR.left + (p.getX() * sX);
+                    const y = vR.top + (p.getY() * sY);
+                    if (x >= bR.left && x <= bR.right && y >= bR.top && y <= bR.bottom) { inside = true; break; }
                 }
+                if (!inside) return;
             }
-
-            const code = result.getText();
-
-            // Debounce, um Mehrfachscans in Millisekunden zu verhindern
-            if (code !== lastScannedCode) {
-                lastScannedCode = code;
-                processScannedCode(code);
-
+            if (result.getText() !== lastScannedCode) {
+                lastScannedCode = result.getText();
+                processScannedCode(lastScannedCode);
                 canProcessScan = false;
-
                 clearTimeout(scanDebounceTimer);
-                scanDebounceTimer = setTimeout(() => {
-                    lastScannedCode = '';
-                    canProcessScan = true;
-                }, 1500);
+                scanDebounceTimer = setTimeout(() => { lastScannedCode = ''; canProcessScan = true; }, 1500);
             }
         }
     }).then(() => {
@@ -548,465 +340,178 @@ function startCamera() {
         videoEl.classList.remove('hidden');
         scannerOverlay.classList.remove('hidden');
         cameraPlaceholder.classList.add('hidden');
-
-        // Scan Button kommt, nachdem die Kamera aktiviert wurde
-        const scanButtonContainer = document.getElementById('scanButtonContainer');
-        if (scanButtonContainer) scanButtonContainer.classList.remove('hidden');
-
-        // Vollbildmodus aktivieren
-        if (videoContainer) {
-            videoContainer.classList.add('camera-fullscreen-mode');
-        }
+        document.getElementById('scanButtonContainer').classList.remove('hidden');
+        videoContainer.classList.add('camera-fullscreen-mode');
         document.body.classList.add('overflow-hidden');
-
-        const closeBtn = document.getElementById('closeFullscreenBtn');
-        if (closeBtn) closeBtn.classList.remove('hidden');
-
-        if (toggleCameraBtn) {
-            toggleCameraBtn.classList.add('hidden');
-        };
-    }).catch((err) => {
-        console.error('Kamerafehler:', err);
-        showToast('Kamerafehler', 'Zugriff auf Kamera fehlgeschlagen.', 'error');
-    });
+        document.getElementById('closeFullscreenBtn').classList.remove('hidden');
+        document.getElementById('toggleCameraBtn').classList.add('hidden');
+    }).catch(e => showToast('Kamerafehler', 'Zugriff fehlgeschlagen.', 'error'));
 }
 
 function stopCamera() {
-    // 1. CodeReader stoppen / zurücksetzen
-    if (codeReader) {
-        try {
-            codeReader.reset();
-            codeReader = null;
-        } catch (e) {
-            console.error("Fehler beim Zurücksetzen des CodeReaders:", e);
-        }
-    }
-
+    if (codeReader) { codeReader.reset(); codeReader = null; }
     isCameraActive = false;
-
-    // 2. Video & Overlay verstecken, Placeholder wieder zeigen
-    if (videoEl) videoEl.classList.add('hidden');
-    if (scannerOverlay) scannerOverlay.classList.add('hidden');
-    if (cameraPlaceholder) cameraPlaceholder.classList.remove('hidden');
-
-    // Scan-Button im Vollbild ausblenden
-    const scanButtonContainer = document.getElementById('scanButtonContainer');
-    if (scanButtonContainer) scanButtonContainer.classList.add('hidden');
-
-    // Vollbildmodus zurücksetzen
-    if (videoContainer) {
-        videoContainer.classList.remove('camera-fullscreen-mode');
-    }
-
+    videoEl.classList.add('hidden');
+    scannerOverlay.classList.add('hidden');
+    cameraPlaceholder.classList.remove('hidden');
+    document.getElementById('scanButtonContainer').classList.add('hidden');
+    videoContainer.classList.remove('camera-fullscreen-mode');
     document.body.classList.remove('overflow-hidden');
-
-    const closeBtn = document.getElementById('closeFullscreenBtn');
-    if (closeBtn) closeBtn.classList.add('hidden');
-
-    // WICHTIG: Den "Kamera starten"-Button auf der Karte wieder sichtbar machen!
-    if (toggleCameraBtn) {
-        toggleCameraBtn.classList.remove('hidden');
-    }
+    document.getElementById('closeFullscreenBtn').classList.add('hidden');
+    document.getElementById('toggleCameraBtn').classList.remove('hidden');
 }
-
-// Globale Funktion für den Hardware-Button (Leiser-Taste am Gehäuse)
-window.triggerHardwareScan = function () {
-    console.log("Hardware-Taste (Leiser) gedrückt!");
-
-    if (isCameraActive && lastScannedCode) {
-        processScannedCode(lastScannedCode);
-        showToast('Code erfasst (Hardware)', lastScannedCode, 'success');
-    } else if (isCameraActive) {
-        showToast('Bereit', 'Bitte halte die Kamera auf einen Barcode', 'info');
-    } else {
-        showToast('Kamera inaktiv', 'Bitte starte zuerst die Kamera', 'warning');
-    }
-};
 
 /* ================================= */
 /*           HTML BUILDER            */
 /* ================================= */
-
 function buildExportHtml(records) {
     const todayFormatted = new Date().toLocaleDateString('de-DE');
     const sortedRecords = [...records].reverse();
+    let prevBin = null;
 
-    let previousBinId = null;
-
-    const tableRowsHtml = sortedRecords.map((record, index) => {
-        const isNewBlock = previousBinId !== null && record.binId !== previousBinId;
-        previousBinId = record.binId;
-
-        const rowStyle = isNewBlock
-            ? `border-top: 4px solid ${EXPORT_COLORS.borderDark}; background-color: ${index % 2 === 0 ? EXPORT_COLORS.bg : EXPORT_COLORS.zebraBg};`
-            : `border-top: 1px solid ${EXPORT_COLORS.borderDark}; background-color: ${index % 2 === 0 ? EXPORT_COLORS.bg : EXPORT_COLORS.zebraBg};`;
-
+    const rows = sortedRecords.map((r, i) => {
+        const isNew = prevBin !== null && r.binId !== prevBin;
+        prevBin = r.binId;
+        const style = `border-top: ${isNew ? '4px solid '+EXPORT_COLORS.borderDark : '1px solid '+EXPORT_COLORS.border}; background: ${i % 2 === 0 ? EXPORT_COLORS.bg : EXPORT_COLORS.zebraBg};`;
         return `
-            <tr style="${rowStyle}">
-                <td style="padding: 10px;">
-                    <span style="font-weight: bold; color: ${EXPORT_COLORS.text}; font-family: monospace;">${escapeHtml(record.binId)}</span>
-                    <button class="btn-copy" onclick="copyText('${escapeHtml(record.binId)}', this)" title="BIN kopieren">📋</button>
+            <tr style="${style}">
+                <td style="padding:12px;font-family:monospace;font-size:14px;color:${EXPORT_COLORS.text};">
+                    <b>${escapeHtml(r.binId)}</b>
+                    <button onclick="cp('${escapeHtml(r.binId)}',this)" style="margin-left:12px;cursor:pointer;border:1px solid #ddd;background:#fff;border-radius:4px;padding:4px 8px;font-size:12px;">📋</button>
                 </td>
-                <td style="padding: 10px;">
-                    <span style="font-weight: 600; color: ${EXPORT_COLORS.text}; font-family: monospace;">${escapeHtml(record.sn)}</span>
-                    <button class="btn-copy" onclick="copyText('${escapeHtml(record.sn)}', this)" title="SN kopieren">📋</button>
+                <td style="padding:12px;font-family:monospace;font-size:14px;color:${EXPORT_COLORS.text};">
+                    ${escapeHtml(r.sn)}
+                    <button onclick="cp('${escapeHtml(r.sn)}',this)" style="margin-left:12px;cursor:pointer;border:1px solid #ddd;background:#fff;border-radius:4px;padding:4px 8px;font-size:12px;">📋</button>
                 </td>
-            </tr>
-        `;
+            </tr>`;
     }).join('');
 
-    return `<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Put Away - Scan List</title>
+    return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><title>Scan Export</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: ${EXPORT_COLORS.bg};
-            color: ${EXPORT_COLORS.text};
-        }
-        .container {
-            width: 100%;    
-            max-width: 100%;
-            margin: 0;
-            background: ${EXPORT_COLORS.bg};
-            padding: 12px;
-            box-sizing: border-box;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid ${EXPORT_COLORS.border};
-            padding-bottom: 16px;
-            margin-bottom: 20px;
-        }
-        h1 { font-size: 20px; margin: 0; color: ${EXPORT_COLORS.text}; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-            font-size: 14px;
-        }
-        th {
-            background-color: ${EXPORT_COLORS.borderDark};
-            color: ${EXPORT_COLORS.bg};
-            border-bottom: 2px solid ${EXPORT_COLORS.border};
-            padding: 10px;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .btn-copy {
-            margin-left: 8px;
-            padding: 2px 6px;
-            font-size: 11px;
-            cursor: pointer;
-            border: 1px solid ${EXPORT_COLORS.zebraBg};
-            background: ${EXPORT_COLORS.bg};
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-        .btn-copy:hover {
-            background: ${EXPORT_COLORS.borderDark};
-            border-color: ${EXPORT_COLORS.border};
-        }
+        body{font-family:-apple-system,sans-serif;padding:20px;background:#fff;margin:0;}
+        table{width:100%;border-collapse:collapse;margin-top:10px;}
+        th{background:${EXPORT_COLORS.borderDark};color:white;padding:12px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:1px;}
+        h2{margin-top:0;color:${EXPORT_COLORS.text};font-size:18px;}
     </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Put Away - ${todayFormatted}</h1>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>BIN (Lagerplatz)</th>
-                    <th>Seriennummer (SN)</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${tableRowsHtml}
-            </tbody>
-        </table>
-    </div>
-    <script>
-function copyText(text, btn) {
-            function showSuccess() {
-                const orig = btn.innerText;
-                btn.innerText = '✅';
-                setTimeout(() => { btn.innerText = orig; }, 1000);
-            }
-
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(text).then(showSuccess).catch(() => {
-                    fallbackCopy(text);
-                });
-            } else {
-                fallbackCopy(text);
-            }
-
-            function fallbackCopy(textToCopy) {
-                const textArea = document.createElement("textarea");
-                textArea.value = textToCopy;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    showSuccess();
-                } catch (err) {
-                    alert('Kopieren fehlgeschlagen');
-                }
-                document.body.removeChild(textArea);
-            }
-        }
-    </script>
-</body>
-</html>`;
+    </head><body><h2>📦 Scan-Liste (${todayFormatted})</h2>
+    <table><thead><tr><th>BIN (Platz)</th><th>Seriennummer (SN)</th></tr></thead><tbody>${rows}</tbody></table>
+    <script>function cp(t,b){const o=b.innerText;if(navigator.clipboard){navigator.clipboard.writeText(t).then(()=>{b.innerText='✅';setTimeout(()=>b.innerText=o,1000);});}else{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);b.innerText='✅';setTimeout(()=>b.innerText=o,1000);}}</script></body></html>`;
 }
 
 /* ========================================== */
 /*     UI-EVENT-LISTENER & INITIALISIERUNG    */
 /* ========================================== */
 
-function showOverview() {
-    const htmlContent = buildExportHtml(scanRecords);
+// Profilverwaltung
+function openProfileModal() { profileEmailInput.value = userEmail; profileModal.classList.remove('hidden'); }
+function closeProfileModal() { profileModal.classList.add('hidden'); }
+settingsBtn?.addEventListener('click', openProfileModal);
+closeProfileBtn?.addEventListener('click', closeProfileModal);
+profileForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    userEmail = profileEmailInput.value.trim();
+    localStorage.setItem('putaway_user_email', userEmail);
+    showToast('Profil gespeichert', 'E-Mail wurde aktualisiert.', 'success');
+    closeProfileModal();
+});
 
+// Übersicht
+function showOverview() {
     const container = document.getElementById('overviewContentContainer');
     if (container) {
         container.innerHTML = '';
         const iframe = document.createElement('iframe');
-        iframe.className = 'w-full border-0 bg-white rounded-lg';
-        iframe.srcdoc = htmlContent;
-
-        iframe.onload = () => {
-            try {
-                const doc = iframe.contentDocument || iframe.contentWindow.document;
-                if (doc && doc.body) {
-                    iframe.style.height = doc.body.scrollHeight + 'px';
-                }
-            } catch (e) {
-                console.error("Konnte Iframe-Höhe nicht anpassen:", e);
-            }
+        // scrolling="no" verhindert interne Scrollbalken
+        iframe.setAttribute('scrolling', 'no');
+        iframe.className = 'w-full border-0 bg-white overflow-hidden';
+        iframe.srcdoc = buildExportHtml(scanRecords);
+        
+        // Magie für die Höhe: Setzt die Iframe-Höhe exakt auf den Content
+        iframe.onload = () => { 
+            setTimeout(() => {
+                try { 
+                    const height = iframe.contentWindow.document.body.scrollHeight;
+                    iframe.style.height = (height + 50) + 'px'; 
+                } catch(e){ console.error("Iframe Height Error", e); }
+            }, 100);
         };
-
         container.appendChild(iframe);
     }
-
-    const mainView = document.getElementById('mainAppView');
-    const overviewView = document.getElementById('overviewView');
-    if (mainView) mainView.classList.add('hidden');
-    if (overviewView) overviewView.classList.remove('hidden');
-
-    window.scrollTo(0, 0);
-    showToast('Übersicht geöffnet', 'Tabellenansicht wurde geladen.', 'success');
+    document.getElementById('mainAppView').classList.add('hidden');
+    document.getElementById('overviewView').classList.remove('hidden');
+    window.scrollTo(0,0);
 }
 
-function hideOverview() {
-    const mainView = document.getElementById('mainAppView');
-    const overviewView = document.getElementById('overviewView');
-
-    if (overviewView) overviewView.classList.add('hidden');
-    if (mainView) mainView.classList.remove('hidden');
-}
-
-// Event-Listener für Buttons und Formulare
-const captureScanBtn = document.getElementById('captureScanBtn');
-if (captureScanBtn) {
-    captureScanBtn.addEventListener('click', () => {
-        canProcessScan = true;
-        if (lastScannedCode) {
-            processScannedCode(lastScannedCode);
-            showToast('Code erfasst', lastScannedCode, 'success');
-        } else {
-            showToast('Kein Code', 'Bitte halte die Kamera über einen Barcode.', 'error');
-        }
-    });
-}
-
-const closeFullscreenBtn = document.getElementById('closeFullscreenBtn');
-if (closeFullscreenBtn) {
-    closeFullscreenBtn.addEventListener('click', () => {
-        stopCamera();
-    });
-}
-
-const toggleCameraBtn = document.getElementById('toggleCameraBtn');
-if (toggleCameraBtn) {
-    toggleCameraBtn.addEventListener('click', async () => {
-        if (isCameraActive) {
-            stopCamera();
-        } else {
-            try {
-                await navigator.mediaDevices.getUserMedia({ video: true });
-                startCamera();
-            } catch (err) {
-                console.error('Kameraberechtigung verweigert:', err);
-                showToast('Berechtigung fehlt', 'Bitte erlaube den Kamerazugriff in den Android-Einstellungen.', 'error');
-            }
-        }
-    });
-}
-
-const manualInputForm = document.getElementById('manualInputForm');
-if (manualInputForm) {
-    manualInputForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const val = manualInput.value;
-        if (val) {
-            processScannedCode(val);
-            manualInput.value = '';
-
-            setTimeout(() => {
-                manualInput.focus();
-            }, 100);
-        }
-    });
-}
-
-const clearBtn = document.getElementById('clearBtn');
-if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-        if (scanRecords.length === 0 && !activeBinId) return;
-        if (confirm('Möchten Sie alle erfassten Scans wirklich löschen?')) {
-            scanRecords = [];
-            activeBinId = null;
-            localStorage.removeItem('putaway_scan_records');
-            localStorage.removeItem('putaway_active_bin');
-            if (activeBinDisplay) {
-                activeBinDisplay.textContent = '-- Nicht gesetzt --';
-            }
-            renderTable();
-            showToast('Tabelle geleert', 'Alle Daten wurden zurückgesetzt', 'info');
-        }
-    });
-}
-
-if (exportViewBtn) {
-    exportViewBtn.addEventListener('click', () => {
-        if (scanRecords.length === 0) {
-            showToast('Export nicht möglich', 'Tabelle ist leer!', 'error');
-            return;
-        }
-        showOverview();
-    });
-}
-
+exportViewBtn?.addEventListener('click', () => scanRecords.length ? showOverview() : showToast('Fehler', 'Keine Daten!', 'error'));
 document.getElementById('backToAppBtn')?.addEventListener('click', () => {
-    hideOverview();
+    document.getElementById('overviewView').classList.add('hidden');
+    document.getElementById('mainAppView').classList.remove('hidden');
 });
 
-// E-Mail-Export mit robuster Capacitor- / Web-Fall-Back-Prüfung
-if (sendEmailBtn) {
-    sendEmailBtn.addEventListener('click', async () => {
-        const totalScans = scanRecords.length;
-        if (totalScans === 0) {
-            showToast('E-Mail nicht möglich', 'Keine Daten vorhanden.', 'error');
+// Buttons
+document.getElementById('toggleCameraBtn')?.addEventListener('click', () => isCameraActive ? stopCamera() : startCamera());
+document.getElementById('closeFullscreenBtn')?.addEventListener('click', stopCamera);
+document.getElementById('captureScanBtn')?.addEventListener('click', () => {
+    canProcessScan = true;
+    if (lastScannedCode) processScannedCode(lastScannedCode);
+    else showToast('Hinweis', 'Kein Code erkannt.', 'error');
+});
+
+manualInputForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (manualInput.value) { processScannedCode(manualInput.value); manualInput.value = ''; setTimeout(() => manualInput.focus(), 100); }
+});
+
+clearBtn?.addEventListener('click', () => {
+    if (scanRecords.length && confirm('Wirklich alle Scans löschen?')) {
+        scanRecords = []; activeBinId = null; persistData(); refreshAppState();
+        showToast('Geleert', 'Alle Daten wurden zurückgesetzt.', 'info');
+    }
+});
+
+// E-Mail & Cross-Platform Export
+sendEmailBtn?.addEventListener('click', async () => {
+    const t = scanRecords.length;
+    if (!t) return showToast('Fehler', 'Keine Daten!', 'error');
+    if (!userEmail) { showToast('Profil unvollständig', 'Bitte E-Mail hinterlegen!', 'error'); setTimeout(openProfileModal, 1000); return; }
+
+    const { dateCode, dateDotted, timeCode } = getFormattedTimestamp();
+    const fN = `PutAway_${dateCode}_${timeCode}.html`;
+    const sbj = `PutAway - ${dateDotted} (${t} Scans)`;
+    const bdy = `Hallo,\n\nanbei die interaktive Datei mit ${t} Scans für die Umbuchung.\n\nViele Grüße`;
+    const h = buildExportHtml(scanRecords);
+
+    if (window.Capacitor?.isNativePlatform()) {
+        try {
+            const { Filesystem, Directory } = window.Capacitor.Plugins;
+            const { Share } = window.Capacitor.Plugins;
+            const res = await Filesystem.writeFile({ path: fN, data: h, directory: Directory.Cache, encoding: 'utf8' });
+            await Share.share({ title: sbj, text: bdy, url: res.uri, dialogTitle: 'Export senden via...' });
             return;
+        } catch (e) { console.error(e); }
+    }
+
+    if (navigator.share && navigator.canShare) {
+        const bl = new Blob([h], { type: 'text/html' });
+        const fl = new File([bl], fN, { type: 'text/html' });
+        if (navigator.canShare({ files: [fl] })) {
+            try { await navigator.share({ files: [fl], title: sbj, text: bdy }); return; } catch(e) {}
         }
+    }
 
-        const { dateCode, dateDotted, timeCode } = getFormattedTimestamp();
-        const fileName = `PutAway_${dateCode}_${timeCode}.html`;
-        const subjectText = `PutAway - ${dateDotted} (${totalScans} Scans)`;
-        const bodyTextRaw = `Hallo,\n\nanbei die interaktive Datei mit ${totalScans} Scans für die Umbuchung.\n\nViele Grüße`;
-        const htmlContent = buildExportHtml(scanRecords);
+    const bl = new Blob([h], { type: 'text/html;charset=utf-8' });
+    const lnk = document.createElement('a');
+    lnk.href = URL.createObjectURL(bl);
+    lnk.download = fN;
+    lnk.click();
+    window.open(`mailto:${userEmail}?subject=${encodeURIComponent(sbj)}&body=${encodeURIComponent(bdy)}`, '_blank');
+    showToast('Export', 'HTML geladen & E-Mail geöffnet!', 'success');
+});
 
-        // 1. Sichere Entnahme der Capacitor-Plugins ohne ES-Module-Imports
-        const CapacitorPlugins = window.Capacitor && window.Capacitor.Plugins;
-        const Filesystem = CapacitorPlugins && CapacitorPlugins.Filesystem;
-        const Share = CapacitorPlugins && CapacitorPlugins.Share;
-        const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
-
-        if (isNative && Filesystem && Share) {
-            try {
-                const fileResult = await Filesystem.writeFile({
-                    path: fileName,
-                    data: htmlContent,
-                    directory: Directory.Cache,
-                    encoding: 'utf8'
-                });
-
-                await Share.share({
-                    title: subjectText,
-                    text: bodyTextRaw,
-                    url: fileResult.uri,
-                    dialogTitle: 'PutAway Export teilen'
-                });
-
-                showToast('Export erfolgreich', 'Datei bereit zum Senden!', 'success');
-                return;
-            } catch (err) {
-                console.error("Capacitor Native Export Fehler:", err);
-                showToast('Fehler', 'Nativer Export fehlgeschlagen.', 'error');
-                return;
-            }
-        }
-
-        // 2. Web-Fallback (Browser / PWA)
-        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-        const file = new File([blob], fileName, { type: 'text/html' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    files: [file],
-                    title: subjectText,
-                    text: bodyTextRaw
-                });
-                showToast('Export erfolgreich', 'Datei bereit zum Senden!', 'success');
-            } catch (err) {
-                if (err.name !== 'AbortError') {
-                    showToast('Fehler', 'Teilen fehlgeschlagen.', 'error');
-                }
-            }
-            return;
-        }
-
-        // 3. Klassischer Download-Fallback für PC
-        const subject = encodeURIComponent(subjectText);
-        const bodyText = encodeURIComponent(bodyTextRaw);
-
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        window.open(`mailto:?subject=${subject}&body=${bodyText}`, '_blank');
-        showToast('Export gestartet', 'HTML-Datei heruntergeladen & E-Mail geöffnet!', 'success');
-    });
-}
-
-// In Zwischenablage kopieren (Nur BIN und SN, älteste Scans zuerst)
-if (copyClipboardBtn) {
-    copyClipboardBtn.addEventListener('click', () => {
-        if (scanRecords.length === 0) {
-            showToast('Kopieren nicht möglich', 'Keine Daten vorhanden.', 'error');
-            return;
-        }
-
-        let text = 'BIN\tSeriennummer\n';
-        [...scanRecords].reverse().forEach(r => {
-            text += `${r.binId}\t${r.sn}\n`;
-        });
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(() => {
-                showToast('Kopiert!', 'Daten liegen in der Zwischenablage.', 'success');
-            });
-        } else {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            showToast('Kopiert!', 'Daten liegen in der Zwischenablage.', 'success');
-        }
-    });
-}
+// Clipboard
+copyClipboardBtn?.addEventListener('click', () => {
+    if (!scanRecords.length) return showToast('Fehler', 'Keine Daten!', 'error');
+    let t = 'BIN\tSeriennummer\n';
+    [...scanRecords].reverse().forEach(r => t += `${r.binId}\t${r.sn}\n`);
+    navigator.clipboard.writeText(t).then(() => showToast('Kopiert!', 'Daten in Zwischenablage.', 'success'));
+});
