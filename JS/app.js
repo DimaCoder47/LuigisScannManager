@@ -77,7 +77,7 @@ function refreshAppState() {
     userEmail = localStorage.getItem('putaway_user_email') || '';
 
     if (activeBinDisplay) {
-        activeBinDisplay.textContent = activeBinId ? activeBinId : '-- Nicht gesetzt --';
+        activeBinDisplay.textContent = activeBinId ? activeBinId : '-- Leer --';
     }
     renderTable();
 }
@@ -218,11 +218,11 @@ function showToast(title, message, type = 'success') {
 /* =================================== */
 function processScannedCode(scannedCode) {
     if (!scannedCode) return;
-    const cleanCode = String(scannedCode).trimEnd();
+    const cleanCode = String(scannedCode).trimEnd().toUpperCase();
     
     if (isValidBinId(cleanCode)) {
         setActiveBinId(cleanCode.toUpperCase());
-        showToast('Erfolg', `BIN ID gesetzt: ${cleanCode.toUpperCase()}`);
+        showToast('Erfolg', `BIN ID gesetzt: ${cleanCode}`);
         playBeep();
         if (manualInput) manualInput.value = '';
         return;
@@ -236,7 +236,7 @@ function processScannedCode(scannedCode) {
     
     if (!isValidSN(cleanCode)) {
         playBeep('error');
-        showToast('Fehler', "Ungültige Seriennummer!", 'error');
+        showToast('Fehler', "Ungültige Serial!", 'error');
         return;
     }
 
@@ -394,7 +394,7 @@ function buildExportHtml(records) {
         h2{margin-top:0;color:${EXPORT_COLORS.text};font-size:18px;}
     </style>
     </head><body><h2>📦 Scan-Liste (${todayFormatted})</h2>
-    <table><thead><tr><th>BIN (Platz)</th><th>Seriennummer (SN)</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>BIN ID</th><th>Serial</th></tr></thead><tbody>${rows}</tbody></table>
     <script>function cp(t,b){const o=b.innerText;if(navigator.clipboard){navigator.clipboard.writeText(t).then(()=>{b.innerText='✅';setTimeout(()=>b.innerText=o,1000);});}else{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);b.innerText='✅';setTimeout(()=>b.innerText=o,1000);}}</script></body></html>`;
 }
 
@@ -402,16 +402,25 @@ function buildExportHtml(records) {
 /*     UI-EVENT-LISTENER & INITIALISIERUNG    */
 /* ========================================== */
 
-// Profilverwaltung
-function openProfileModal() { profileEmailInput.value = userEmail; profileModal.classList.remove('hidden'); }
-function closeProfileModal() { profileModal.classList.add('hidden'); }
+// Profilverwaltung (mit dynamischem Hinzufügen/Entfernen von 'flex')
+function openProfileModal() { 
+    profileEmailInput.value = userEmail; 
+    profileModal.classList.remove('hidden'); 
+    profileModal.classList.add('flex'); // <--- Bringt das Modal perfekt in die Mitte
+}
+
+function closeProfileModal() { 
+    profileModal.classList.add('hidden'); 
+    profileModal.classList.remove('flex'); // <--- Nimmt es beim Schließen wieder weg
+}
+
 settingsBtn?.addEventListener('click', openProfileModal);
 closeProfileBtn?.addEventListener('click', closeProfileModal);
 profileForm?.addEventListener('submit', (e) => {
     e.preventDefault();
     userEmail = profileEmailInput.value.trim();
     localStorage.setItem('putaway_user_email', userEmail);
-    showToast('Profil gespeichert', 'E-Mail wurde aktualisiert.', 'success');
+    showToast('E-Mail gespeichert.', 'success');
     closeProfileModal();
 });
 
@@ -469,49 +478,70 @@ clearBtn?.addEventListener('click', () => {
     }
 });
 
-// E-Mail & Cross-Platform Export
-sendEmailBtn?.addEventListener('click', async () => {
+// E-Mail & Cross-Platform Export (Hybrid: Download + mailto:)
+sendEmailBtn?.addEventListener('click', () => {
     const t = scanRecords.length;
     if (!t) return showToast('Fehler', 'Keine Daten!', 'error');
-    if (!userEmail) { showToast('Profil unvollständig', 'Bitte E-Mail hinterlegen!', 'error'); setTimeout(openProfileModal, 1000); return; }
+    if (!userEmail) { 
+        showToast('Bitte E-Mail hinterlegen!', 'error'); 
+        setTimeout(openProfileModal, 1000);
+        return; 
+    }
 
     const { dateCode, dateDotted, timeCode } = getFormattedTimestamp();
     const fN = `PutAway_${dateCode}_${timeCode}.html`;
     const sbj = `PutAway - ${dateDotted} (${t} Scans)`;
-    const bdy = `Hallo,\n\nanbei die interaktive Datei mit ${t} Scans für die Umbuchung.\n\nViele Grüße`;
+    const bdy = `Hallo,\n\nanbei die Export-Datei (${t} Scans) mit interaktiver Kopier-Funktion für die Umbuchung.\n\nViele Grüße`;
     const h = buildExportHtml(scanRecords);
 
-    if (window.Capacitor?.isNativePlatform()) {
-        try {
-            const { Filesystem, Directory } = window.Capacitor.Plugins;
-            const { Share } = window.Capacitor.Plugins;
-            const res = await Filesystem.writeFile({ path: fN, data: h, directory: Directory.Cache, encoding: 'utf8' });
-            await Share.share({ title: sbj, text: bdy, url: res.uri, dialogTitle: 'Export senden via...' });
-            return;
-        } catch (e) { console.error(e); }
-    }
-
-    if (navigator.share && navigator.canShare) {
-        const bl = new Blob([h], { type: 'text/html' });
-        const fl = new File([bl], fN, { type: 'text/html' });
-        if (navigator.canShare({ files: [fl] })) {
-            try { await navigator.share({ files: [fl], title: sbj, text: bdy }); return; } catch(e) {}
-        }
-    }
-
+    // 1. HTML-Datei auf dem Handy / PC lokal zum Download anbieten
     const bl = new Blob([h], { type: 'text/html;charset=utf-8' });
     const lnk = document.createElement('a');
     lnk.href = URL.createObjectURL(bl);
     lnk.download = fN;
     lnk.click();
-    window.open(`mailto:${userEmail}?subject=${encodeURIComponent(sbj)}&body=${encodeURIComponent(bdy)}`, '_blank');
-    showToast('Export', 'HTML geladen & E-Mail geöffnet!', 'success');
+
+    // 2. E-Mail-Programm mit vorausgefülltem Empfänger öffnen (0.5 Sek. verzögert für sauberen Download)
+    setTimeout(() => {
+        window.location.href = `mailto:${encodeURIComponent(userEmail)}?subject=${encodeURIComponent(sbj)}&body=${encodeURIComponent(bdy)}`;
+    }, 500);
+
+    showToast('Export', 'Download & Mail App!', 'success');
 });
 
 // Clipboard
 copyClipboardBtn?.addEventListener('click', () => {
     if (!scanRecords.length) return showToast('Fehler', 'Keine Daten!', 'error');
-    let t = 'BIN\tSeriennummer\n';
+    let t = 'BIN ID\tSerial\n';
     [...scanRecords].reverse().forEach(r => t += `${r.binId}\t${r.sn}\n`);
-    navigator.clipboard.writeText(t).then(() => showToast('Kopiert!', 'Daten in Zwischenablage.', 'success'));
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(() => {
+            showToast('Kopiert!', 'Daten in Zwischenablage.', 'success');
+        }).catch(() => {
+            fallbackCopyText(t);
+        });
+    } else {
+        fallbackCopyText(t);
+    }
 });
+
+function fallbackCopyText(text) {
+    try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed'; // Verhindert unerwünschtes Scrollen
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (successful) {
+            showToast('Kopiert!', 'Daten in Zwischenablage.', 'success');
+        } else {
+            showToast('Fehler', 'Kopieren fehlgeschlagen.', 'error');
+        }
+    } catch (err) {
+        showToast('Fehler', 'Zwischenablage nicht unterstützt.', 'error');
+    }
+}
