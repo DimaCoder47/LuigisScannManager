@@ -21,55 +21,64 @@
 
 <body
   class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-slate-900 [&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-600">
-  
+
   <!-- Header -->
   <header class="bg-slate-800 border-b border-slate-700 p-4 sticky top-0 z-30 shadow-lg w-full">
-    <div class="max-w-6xl mx-auto w-full px-4 flex flex-col sm:flex-row justify-between items-center gap-4 relative">
+    <div class="flex flex-col sm:flex-row max-w-6xl mx-auto w-full px-4 justify-between items-center gap-4 relative">
 
       <!-- Linke Seite: Titel -->
-      <div class="text-center sm:text-left flex-1">
-        <h1 class="text-xl font-bold text-white flex items-center justify-center sm:justify-start gap-2">
+      <div class="order-2 sm:order-2 text-center sm:text-left flex-1 min-w-0">
+        <h1 class="text-xl font-bold text-white flex items-center justify-center text-center gap-2 truncate">
           <span>📦</span> Luigi's Scan Manager
         </h1>
-        <p class="text-xs text-slate-400">Erfassen & Exportieren von Barcodes</p>
+        <p class="text-xs text-slate-400 text-center mt-2">Erfassen & Exportieren von Barcodes</p>
       </div>
 
       <!-- MITTE: Einstellungen (Zahnrad) -->
-      <div class="flex items-center justify-center order-3 sm:order-none">
-        <button id="settingsBtn" type="button" class="p-2.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-all active:scale-90" title="Profil-Einstellungen">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+      <div class="order-1 sm:order-1 flex items-center justify-center">
+        <button id="settingsBtn" type="button"
+          class="p-2.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-all active:scale-90"
+          title="Profil-Einstellungen">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z">
+            </path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
         </button>
       </div>
 
       <!-- Rechte Seite: BIN-Anzeige -->
-      <div class="flex items-center gap-3 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 flex-1 justify-center sm:justify-end">
-        <div class="text-center sm:text-right">
-          <div class="text-[10px] uppercase tracking-wider text-slate-400">Aktueller Platz (BIN)</div>
-          <div id="activeBinDisplay"
-            class="font-mono font-extrabold text-amber-400 text-2xl sm:text-3xl tracking-wider">-- Nicht gesetzt --
+      <div
+        class="order-3 sm:order-3 flex items-center gap-3 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 flex-1 justify-center sm:justify-center">
+        <div class="text-center sm:text-center">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 text-center">Aktuelle BIN ID</div>
+          <div id="activeBinDisplay" class="text-xl font-extrabold text-amber-400 tracking-wider">-- Leer --
           </div>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- Übersicht anzeigen im Vollbildmodus (Korrektur: Kein festes flex-1 h-full hier) -->
-  <div id="overviewView" class="hidden min-h-screen w-full bg-slate-900 text-white p-4 md:p-8 flex-col">
-    <div
-      class="w-full max-w-7xl mx-auto bg-white rounded-xl p-4 md:p-6 shadow-2xl flex flex-col h-auto overflow-visible">
-      
-      <!-- Header der Übersicht mit Zurück-Button -->
-      <div class="flex justify-between items-center border-b border-slate-200 pb-4 mb-6">
-        <h1 id="overviewTitle" class="text-lg font-bold text-slate-800">Put Away - Scan Übersicht</h1>
-        <button id="backToAppBtn" type="button"
-          class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-5 py-2.5 rounded-lg transition shadow-md active:scale-95">
-          ← Zurück zum Scanner
-        </button>
-      </div>
+  <!-- Übersicht anzeigen im Vollbildmodus -->
+  <div id="overviewView" class="min-h-screen w-full bg-slate-900 text-white p-4 md:p-8 flex flex-col">
 
-      <!-- Content Container (Korrektur: h-auto damit Iframe wachsen kann) -->
+    <!-- Header der Übersicht mit Zurück-Button -->
+    <div class="w-full max-w-7xl mx-auto flex justify-between items-center border-b border-slate-700 pb-4 mb-6">
+      <h1 id="overviewTitle" class="text-xl font-bold text-amber-400">Put Away - Scan Übersicht</h1>
+      <button id="backToAppBtn" type="button"
+        class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-5 py-2.5 rounded-lg transition shadow-md active:scale-95">
+        ← Zurück zum Scanner
+      </button>
+    </div>
+
+    <!-- Content Container -->
+    <div
+      class="w-full max-w-7xl mx-auto bg-white rounded-xl p-4 md:p-6 shadow-2xl flex flex-col h-auto overflow-hidden">
       <div id="overviewContentContainer" class="w-full h-auto">
-        <!-- Iframe landet hier -->
+        <iframe scrolling="no" class="w-full border-0 bg-white overflow-hidden" srcdoc="..."
+          style="height: 1169px;"></iframe>
       </div>
     </div>
   </div>
@@ -81,12 +90,14 @@
       <!-- Scanner & Input Sektion -->
       <section class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         <div id="cameraCard"
-          class="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-md flex flex-col justify-between h-full">
+          class="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-md flex flex-col justify-between h-full mb-3">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2"><span>📷</span>Kamera-Scanner</h2>
+            <h2 class="text-base font-semibold text-white mb-3 flex items-center gap-2"><span>📷</span>Kamera-Scanner
+            </h2>
             <div id="videoContainer"
-              class="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-slate-700 flex items-center justify-center transition-all duration-300">
-              <video id="video" playsinline autoplay muted class="w-full h-full object-cover bg-black hidden"></video>
+              class="relative w-full h-64 sm:h-80 bg-black rounded-lg overflow-hidden border border-slate-700 flex items-center justify-center transition-all duration-300">
+              <video id="video" playsinline="" autoplay="" muted=""
+                class="w-full h-full object-cover bg-black hidden"></video>
               <div id="cameraPlaceholder"
                 class="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-900/80">
                 <span class="text-3xl mb-1">📷</span>
@@ -104,14 +115,22 @@
                   <div id="targetScanBox"
                     class="relative w-[calc(100%-3rem)] mx-auto h-24 border-2 border-rose-500/60 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] flex items-center justify-center bg-transparent box-border">
                     <div class="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-                      <div class="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-rose-500 rounded-tl-lg"></div>
-                      <div class="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-rose-500 rounded-tr-lg"></div>
-                      <div class="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-rose-500 rounded-bl-lg"></div>
-                      <div class="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-rose-500 rounded-br-lg"></div>
-                      <div class="absolute top-0 left-0 w-full h-1 bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,1)] animate-laser-smooth"></div>
+                      <div class="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-rose-500 rounded-tl-lg">
+                      </div>
+                      <div class="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-rose-500 rounded-tr-lg">
+                      </div>
+                      <div class="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-rose-500 rounded-bl-lg">
+                      </div>
+                      <div
+                        class="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-rose-500 rounded-br-lg">
+                      </div>
+                      <div
+                        class="absolute top-0 left-0 w-full h-1 bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,1)] animate-laser-smooth">
+                      </div>
                     </div>
                   </div>
-                  <div class="mt-4 bg-black/80 border border-slate-600 px-4 py-2 rounded-full text-white text-sm font-semibold shadow-md tracking-wide text-center">
+                  <div
+                    class="mt-4 bg-black/80 border border-slate-600 px-4 py-2 rounded-full text-white text-sm font-semibold shadow-md tracking-wide text-center">
                     Halte den Barcode an den roten Laser
                   </div>
                   <div class="mt-8 pointer-events-auto flex justify-center items-center">
@@ -143,15 +162,22 @@
 
         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-md flex flex-col justify-between h-full">
           <div>
-            <h2 class="text-base font-semibold text-white mb-3 flex items-center gap-2"><span>⌨️</span> Manuelle Eingabe / Handscanner</h2>
-            <form id="manualInputForm" class="flex gap-2">
+            <h2 class="text-base font-semibold text-white mb-3 flex items-center gap-2"><span>⌨️</span> Manuelle Eingabe
+              / Handscanner</h2>
+            <form id="manualInputForm" class="flex gap-2 mb-3">
               <input type="text" id="manualInput" placeholder="Barcode manuell tippen/scannen..." maxlength="25"
                 class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-mono"
                 autocomplete="off" inputmode="text">
               <button type="submit"
                 class="bg-slate-700 hover:bg-slate-600 text-white text-sm px-4 py-2 rounded-lg transition">Erfassen</button>
             </form>
+            <!-- BIN-ID Prefix Hinweis -->
+            <div class="px-3 py-2 bg-slate-900/40 border border-slate-700/50 rounded-lg flex items-center text-xs">
+              <span class="text-slate-400 font-medium">⚠</span>
+              <span class="text-slate-400 font-medium">Erlaubter BIN-Bereich: D01 - D72</span>
+            </div>
           </div>
+
           <div class="mt-6 pt-4 border-t border-slate-700/60 flex flex-col gap-3">
             <button id="exportViewBtn"
               class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg text-sm transition shadow flex items-center justify-center gap-2">
@@ -181,15 +207,17 @@
       <section class="bg-slate-800 rounded-xl border border-slate-700 shadow-md overflow-hidden flex-1 flex flex-col">
         <div class="p-4 border-b border-slate-700 flex justify-between items-center">
           <h2 class="text-sm font-semibold text-slate-300">Erfasste Scans</h2>
-          <span id="scanCountBadge" class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-mono">0 Scans</span>
+          <span id="scanCountBadge"
+            class="text-xs px-2 py-0.5 border border-amber-400/50 rounded-full font-mono text-amber-400 bg-amber-500/10">0
+            Scans</span>
         </div>
         <div class="overflow-x-auto flex-1">
           <table class="w-full text-left text-sm text-slate-300">
             <thead class="bg-slate-900/80 text-xs text-slate-400 uppercase tracking-wider border-b border-slate-700">
               <tr>
                 <th class="p-3">Zeit</th>
-                <th class="p-3">BIN (Lagerplatz)</th>
-                <th class="p-3">Seriennummer (SN)</th>
+                <th class="p-3">BIN ID</th>
+                <th class="p-3">Serial</th>
                 <th class="p-3 text-right">Aktion</th>
               </tr>
             </thead>
@@ -201,21 +229,24 @@
   </div>
 
   <!-- Profil-Modal -->
-  <div id="profileModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-    <div class="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all">
+  <div id="profileModal"
+    class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md transition-opacity duration-300">
+    <div
+      class="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100">
       <div class="p-6 border-b border-slate-700 flex justify-between items-center">
-        <h3 class="text-lg font-bold text-white">⚙️ Profil & Einstellungen</h3>
-        <button id="closeProfileBtn" class="text-slate-400 hover:text-white text-xl">✕</button>
+        <h3 class="text-base font-bold text-white flex items-center gap-2"><span>⚙️</span>Einstellungen</h3>
+        <button id="closeProfileBtn" class="text-slate-400 hover:text-white text-xl p-1 transition-colors">✕</button>
       </div>
-      <form id="profileForm" class="p-6 space-y-4">
+      <form id="profileForm" class="p-6 space-y-4 text-center">
         <div>
-          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1.5">Empfänger E-Mail</label>
-          <input type="email" id="profileEmailInput" placeholder="beispiel@firma.de" 
-            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors"
+          <h4 class="text-sm font-semibold text-white uppercase tracking-widest mb-3 text-center">Empfänger E-Mail</h4>
+          <input type="email" id="profileEmailInput" placeholder="beispiel@firma.de"
+            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors font-mono text-sm text-center"
             required>
           <p class="text-[10px] text-slate-500 mt-2">Diese Adresse wird für den E-Mail-Export genutzt.</p>
         </div>
-        <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95">
+        <button type="submit"
+          class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95">
           Einstellungen speichern
         </button>
       </form>
@@ -234,4 +265,5 @@
 
   <script src="JS/app.js"></script>
 </body>
+
 </html>
