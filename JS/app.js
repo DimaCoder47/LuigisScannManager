@@ -11,8 +11,8 @@ const EXPORT_COLORS = {
     bg: "#ffffff",
     zebraBg: "#f8fafc",
     text: "#0f172a",
-    border: "#e2e8f0", 
-    borderDark: "#64748b" 
+    border: "#e2e8f0",
+    borderDark: "#64748b"
 };
 
 /* ================================ */
@@ -43,6 +43,7 @@ const profileEmailInput = document.getElementById('profileEmailInput');
 /* ================================ */
 let scanRecords = JSON.parse(localStorage.getItem('putaway_scan_records')) || [];
 let activeBinId = localStorage.getItem('putaway_active_bin') || null;
+let activeBinFormat = localStorage.getItem('putaway_active_bin_format') || 'MANUAL';
 let userEmail = localStorage.getItem('putaway_user_email') || '';
 let codeReader = null;
 let isCameraActive = false;
@@ -56,9 +57,10 @@ let cachedAudioCtx = null;
 /* ======================= */
 /*         LIFECYCLE       */
 /* ======================= */
-function setActiveBinId(binId) {
+function setActiveBinId(binId, format = 'MANUAL') {
     activeBinId = binId;
-    if (activeBinDisplay) activeBinDisplay.textContent = activeBinId;
+    activeBinFormat = format;
+    if (activeBinDisplay) activeBinDisplay.textContent = activeBinId ? `${activeBinId} [${activeBinFormat}]` : '-- Leer --';
     persistData();
 }
 
@@ -66,18 +68,20 @@ function persistData() {
     localStorage.setItem('putaway_scan_records', JSON.stringify(scanRecords));
     if (activeBinId) {
         localStorage.setItem('putaway_active_bin', activeBinId);
+        localStorage.setItem('putaway_active_bin_format', activeBinFormat);
     } else {
         localStorage.removeItem('putaway_active_bin');
+        localStorage.removeItem('putaway_active_bin_format');
     }
 }
 
 function refreshAppState() {
     scanRecords = JSON.parse(localStorage.getItem('putaway_scan_records')) || [];
     activeBinId = localStorage.getItem('putaway_active_bin') || null;
-    userEmail = localStorage.getItem('putaway_user_email') || '';
+    activeBinFormat = localStorage.getItem('putaway_active_bin_format') || 'MANUAL';
 
     if (activeBinDisplay) {
-        activeBinDisplay.textContent = activeBinId ? activeBinId : '-- Leer --';
+        activeBinDisplay.textContent = activeBinId ? `${activeBinId} [${activeBinFormat}]` : '-- Leer --';
     }
     renderTable();
 }
@@ -136,7 +140,7 @@ async function triggerHaptic(type = 'success') {
                 else navigator.vibrate(80);
             }
         }, 30);
-    } catch (e) {}
+    } catch (e) { }
 }
 
 function playBeep(type = 'success') {
@@ -171,7 +175,7 @@ function playBeep(type = 'success') {
         g.connect(ctx.destination);
         osc.start(now);
         osc.stop(now + (type === 'error' ? 0.28 : 0.15));
-    } catch (e) {}
+    } catch (e) { }
 }
 
 function showToast(title, message, type = 'success') {
@@ -216,24 +220,25 @@ function showToast(title, message, type = 'success') {
 /* =================================== */
 /*      Daten & Tabellen-Management    */
 /* =================================== */
-function processScannedCode(scannedCode) {
+function processScannedCode(scannedCode, barcodeFormat = 'MANUAL') {
     if (!scannedCode) return;
     const cleanCode = String(scannedCode).trimEnd().toUpperCase();
-    
+
+    // Prüfen, ob es eine BIN ID ist
     if (isValidBinId(cleanCode)) {
-        setActiveBinId(cleanCode.toUpperCase());
-        showToast('Erfolg', `BIN ID gesetzt: ${cleanCode}`);
+        setActiveBinId(cleanCode.toUpperCase(), barcodeFormat);
+        showToast('Erfolg', `BIN ID gesetzt: ${cleanCode} (${barcodeFormat})`);
         playBeep();
         if (manualInput) manualInput.value = '';
         return;
     }
-    
+
     if (!activeBinId) {
         playBeep('error');
         showToast('Fehler', "Bitte zuerst eine gültige BIN ID scannen!", 'error');
         return;
     }
-    
+
     if (!isValidSN(cleanCode)) {
         playBeep('error');
         showToast('Fehler', "Ungültige Serial!", 'error');
@@ -245,7 +250,9 @@ function processScannedCode(scannedCode) {
         id: Date.now().toString(),
         timestamp: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         binId: activeBinId,
+        binFormat: activeBinFormat, // Format der BIN ID
         sn: cleanCode,
+        snFormat: barcodeFormat,     // Format der SN
         isDuplicate: isDuplicate
     };
 
@@ -258,7 +265,7 @@ function processScannedCode(scannedCode) {
         showToast('Hinweis', `SN ${cleanCode} ist eine Dublette!`, 'error');
     } else {
         playBeep('success');
-        showToast('Erfolg', `SN erfasst: ${cleanCode}`);
+        showToast('Erfolg', `SN erfasst: ${cleanCode} (${barcodeFormat})`);
     }
 }
 
@@ -268,7 +275,7 @@ function renderTable() {
     scanCountBadge.textContent = `${scanRecords.length} Scans`;
 
     if (scanRecords.length === 0) {
-        scanTableBody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 text-xs italic">Noch keine Scans vorhanden.</td></tr>`;
+        scanTableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 text-xs italic">Noch keine Scans vorhanden.</td></tr>`;
         return;
     }
 
@@ -285,7 +292,9 @@ function renderTable() {
         tr.innerHTML = `
             <td class="p-3 text-xs ${isDup ? 'text-red-200' : 'text-slate-400'}">${record.timestamp}</td>
             <td class="p-3 ${isDup ? 'text-white font-bold' : 'text-amber-400 font-bold'}">${escapeHtml(record.binId)}</td>
+            <td class="p-3 text-xs text-slate-400 font-mono">${escapeHtml(record.binFormat || 'MANUAL')}</td>
             <td class="p-3 font-semibold text-white">${escapeHtml(record.sn)}</td>
+            <td class="p-3 text-xs text-slate-400 font-mono">${escapeHtml(record.snFormat || 'MANUAL')}</td>
             <td class="p-3 text-right">
                 <button onclick="deleteRecord('${record.id}')" class="text-xs text-rose-300 p-1 rounded hover:bg-rose-900/60">🗑️</button>
             </td>
@@ -294,7 +303,7 @@ function renderTable() {
     });
 }
 
-window.deleteRecord = function(id) {
+window.deleteRecord = function (id) {
     scanRecords = scanRecords.filter(r => r.id !== id);
     persistData();
     renderTable();
@@ -306,7 +315,12 @@ window.deleteRecord = function(id) {
 /* ==================================== */
 function startCamera() {
     const hints = new Map();
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_128]);
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.QR_CODE,
+        ZXing.BarcodeFormat.DATA_MATRIX
+    ]);
     codeReader = new ZXing.BrowserMultiFormatReader(hints);
     const constraints = { video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: "continuous" }] } };
 
@@ -327,9 +341,16 @@ function startCamera() {
                 }
                 if (!inside) return;
             }
+            // In der startCamera() Funktion beim erfolgreichen Scan:
             if (result.getText() !== lastScannedCode) {
                 lastScannedCode = result.getText();
-                processScannedCode(lastScannedCode);
+
+                // Format des Barcodes ermitteln (z.B. CODE_128, CODE_39, QR_CODE etc.)
+                const rawFormat = result.getBarcodeFormat();
+                const formatName = typeof rawFormat === 'number' ? ZXing.BarcodeFormat[rawFormat] : String(rawFormat);
+
+                processScannedCode(lastScannedCode, formatName);
+
                 canProcessScan = false;
                 clearTimeout(scanDebounceTimer);
                 scanDebounceTimer = setTimeout(() => { lastScannedCode = ''; canProcessScan = true; }, 1500);
@@ -372,7 +393,7 @@ function buildExportHtml(records) {
     const rows = sortedRecords.map((r, i) => {
         const isNew = prevBin !== null && r.binId !== prevBin;
         prevBin = r.binId;
-        const style = `border-top: ${isNew ? '4px solid '+EXPORT_COLORS.borderDark : '1px solid '+EXPORT_COLORS.border}; background: ${i % 2 === 0 ? EXPORT_COLORS.bg : EXPORT_COLORS.zebraBg};`;
+        const style = `border-top: ${isNew ? '4px solid ' + EXPORT_COLORS.borderDark : '1px solid ' + EXPORT_COLORS.border}; background: ${i % 2 === 0 ? EXPORT_COLORS.bg : EXPORT_COLORS.zebraBg};`;
         return `
             <tr style="${style}">
                 <td style="padding:12px;font-family:monospace;font-size:14px;color:${EXPORT_COLORS.text};">
@@ -403,14 +424,14 @@ function buildExportHtml(records) {
 /* ========================================== */
 
 // Profilverwaltung (mit dynamischem Hinzufügen/Entfernen von 'flex')
-function openProfileModal() { 
-    profileEmailInput.value = userEmail; 
-    profileModal.classList.remove('hidden'); 
+function openProfileModal() {
+    profileEmailInput.value = userEmail;
+    profileModal.classList.remove('hidden');
     profileModal.classList.add('flex'); // <--- Bringt das Modal perfekt in die Mitte
 }
 
-function closeProfileModal() { 
-    profileModal.classList.add('hidden'); 
+function closeProfileModal() {
+    profileModal.classList.add('hidden');
     profileModal.classList.remove('flex'); // <--- Nimmt es beim Schließen wieder weg
 }
 
@@ -434,21 +455,21 @@ function showOverview() {
         iframe.setAttribute('scrolling', 'no');
         iframe.className = 'w-full border-0 bg-white overflow-hidden';
         iframe.srcdoc = buildExportHtml(scanRecords);
-        
+
         // Magie für die Höhe: Setzt die Iframe-Höhe exakt auf den Content
-        iframe.onload = () => { 
+        iframe.onload = () => {
             setTimeout(() => {
-                try { 
+                try {
                     const height = iframe.contentWindow.document.body.scrollHeight;
-                    iframe.style.height = (height + 50) + 'px'; 
-                } catch(e){ console.error("Iframe Height Error", e); }
+                    iframe.style.height = (height + 50) + 'px';
+                } catch (e) { console.error("Iframe Height Error", e); }
             }, 100);
         };
         container.appendChild(iframe);
     }
     document.getElementById('mainAppView').classList.add('hidden');
     document.getElementById('overviewView').classList.remove('hidden');
-    window.scrollTo(0,0);
+    window.scrollTo(0, 0);
 }
 
 exportViewBtn?.addEventListener('click', () => scanRecords.length ? showOverview() : showToast('Fehler', 'Keine Daten!', 'error'));
@@ -468,7 +489,11 @@ document.getElementById('captureScanBtn')?.addEventListener('click', () => {
 
 manualInputForm?.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (manualInput.value) { processScannedCode(manualInput.value); manualInput.value = ''; setTimeout(() => manualInput.focus(), 100); }
+    if (manualInput.value) { 
+        processScannedCode(manualInput.value, 'MANUAL');
+        manualInput.value = ''; 
+        setTimeout(() => manualInput.focus(), 100); 
+    }
 });
 
 clearBtn?.addEventListener('click', () => {
@@ -482,10 +507,10 @@ clearBtn?.addEventListener('click', () => {
 sendEmailBtn?.addEventListener('click', () => {
     const t = scanRecords.length;
     if (!t) return showToast('Fehler', 'Keine Daten!', 'error');
-    if (!userEmail) { 
-        showToast('Bitte E-Mail hinterlegen!', 'error'); 
+    if (!userEmail) {
+        showToast('Bitte E-Mail hinterlegen!', 'error');
         setTimeout(openProfileModal, 1000);
-        return; 
+        return;
     }
 
     const { dateCode, dateDotted, timeCode } = getFormattedTimestamp();
