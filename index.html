@@ -62,7 +62,7 @@
   </header>
 
   <!-- Übersicht anzeigen im Vollbildmodus -->
-  <div id="overviewView" class="min-h-screen w-full bg-slate-900 text-white p-4 md:p-8 flex flex-col">
+  <div id="overviewView" class="hidden min-h-screen w-full bg-slate-900 text-white p-4 md:p-8 flex-col">
 
     <!-- Header der Übersicht mit Zurück-Button -->
     <div class="w-full max-w-7xl mx-auto flex justify-between items-center border-b border-slate-700 pb-4 mb-6">
@@ -112,9 +112,11 @@
               <div id="scannerOverlay"
                 class="hidden absolute inset-0 z-30 flex-col justify-center items-center pt-10 pointer-events-none">
                 <div class="w-full flex flex-col items-center">
+
                   <div id="targetScanBox"
-                    class="relative w-[calc(100%-3rem)] mx-auto h-24 border-2 border-rose-500/60 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] flex items-center justify-center bg-transparent box-border">
+                    class="relative w-[calc(100%-3rem)] mx-auto h-24 shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] flex items-center justify-center bg-transparent box-border">
                     <div class="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                      <!-- 4 Fokus-Ecken -->
                       <div class="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-rose-500 rounded-tl-lg">
                       </div>
                       <div class="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-rose-500 rounded-tr-lg">
@@ -124,11 +126,13 @@
                       <div
                         class="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-rose-500 rounded-br-lg">
                       </div>
+                      <!-- Animierter Laser-Strich -->
                       <div
                         class="absolute top-0 left-0 w-full h-1 bg-rose-500 shadow-[0_0_15px_rgba(244,63,94,1)] animate-laser-smooth">
                       </div>
                     </div>
                   </div>
+
                   <div
                     class="mt-4 bg-black/80 border border-slate-600 px-4 py-2 rounded-full text-white text-sm font-semibold shadow-md tracking-wide text-center">
                     Halte den Barcode an den roten Laser
@@ -217,9 +221,7 @@
               <tr>
                 <th class="p-3">Zeit</th>
                 <th class="p-3">BIN ID</th>
-                <th class="p-3">Bin-Format</th>
                 <th class="p-3">Serial</th>
-                <th class="p-3">SN-Format</th>
                 <th class="p-3 text-right">Aktion</th>
               </tr>
             </thead>
