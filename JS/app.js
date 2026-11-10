@@ -23,6 +23,7 @@ const cameraPlaceholder = document.getElementById('cameraPlaceholder');
 const scannerOverlay = document.getElementById('scannerOverlay');
 const videoContainer = document.getElementById('videoContainer');
 const manualInput = document.getElementById('manualInput');
+const manualInputForm = document.getElementById('manualInputForm');
 const activeBinDisplay = document.getElementById('activeBinDisplay');
 const exportViewBtn = document.getElementById('exportViewBtn');
 const scanTableBody = document.getElementById('scanTableBody');
@@ -30,6 +31,8 @@ const scanCountBadge = document.getElementById('scanCountBadge');
 const sendEmailBtn = document.getElementById('sendEmailBtn');
 const copyClipboardBtn = document.getElementById('copyClipboardBtn');
 const clearBtn = document.getElementById('clearBtn');
+const overviewView = document.getElementById('overviewView');
+const mainAppView = document.getElementById('mainAppView');
 
 // Profil / Einstellungen
 const settingsBtn = document.getElementById('settingsBtn');
@@ -43,7 +46,7 @@ const profileEmailInput = document.getElementById('profileEmailInput');
 /* ================================ */
 let scanRecords = JSON.parse(localStorage.getItem('putaway_scan_records')) || [];
 let activeBinId = localStorage.getItem('putaway_active_bin') || null;
-let activeBinFormat = localStorage.getItem('putaway_active_bin_format') || 'MANUAL';
+// HINWEIS: activeBinFormat wurde hier entfernt
 let userEmail = localStorage.getItem('putaway_user_email') || '';
 let codeReader = null;
 let isCameraActive = false;
@@ -57,10 +60,10 @@ let cachedAudioCtx = null;
 /* ======================= */
 /*         LIFECYCLE       */
 /* ======================= */
-function setActiveBinId(binId, format = 'MANUAL') {
+function setActiveBinId(binId) {
     activeBinId = binId;
-    activeBinFormat = format;
-    if (activeBinDisplay) activeBinDisplay.textContent = activeBinId ? `${activeBinId} [${activeBinFormat}]` : '-- Leer --';
+    // Anzeige aktualisiert: nur noch ID ohne Format-Anhang
+    if (activeBinDisplay) activeBinDisplay.textContent = activeBinId ? activeBinId : '-- Leer --';
     persistData();
 }
 
@@ -68,21 +71,30 @@ function persistData() {
     localStorage.setItem('putaway_scan_records', JSON.stringify(scanRecords));
     if (activeBinId) {
         localStorage.setItem('putaway_active_bin', activeBinId);
-        localStorage.setItem('putaway_active_bin_format', activeBinFormat);
     } else {
         localStorage.removeItem('putaway_active_bin');
-        localStorage.removeItem('putaway_active_bin_format');
     }
+    // Lokales Löschen von Altlasten falls vorhanden
+    localStorage.removeItem('putaway_active_bin_format');
 }
 
 function refreshAppState() {
     scanRecords = JSON.parse(localStorage.getItem('putaway_scan_records')) || [];
     activeBinId = localStorage.getItem('putaway_active_bin') || null;
-    activeBinFormat = localStorage.getItem('putaway_active_bin_format') || 'MANUAL';
 
     if (activeBinDisplay) {
-        activeBinDisplay.textContent = activeBinId ? `${activeBinId} [${activeBinFormat}]` : '-- Leer --';
+        activeBinDisplay.textContent = activeBinId ? activeBinId : '-- Leer --';
     }
+
+    // SICHERHEITS-CHECK: Reset der Ansichten
+    if (overviewView) {
+        overviewView.classList.add('hidden');
+        overviewView.classList.remove('flex');
+    }
+    if (mainAppView) {
+        mainAppView.classList.remove('hidden');
+    }
+
     renderTable();
 }
 
@@ -151,31 +163,46 @@ function playBeep(type = 'success') {
         }
         const ctx = cachedAudioCtx;
         if (!ctx) return;
+        
+        // AudioContext aufwecken
         if (ctx.state === 'suspended') ctx.resume();
 
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
-        osc.type = 'sine';
+        
+        osc.connect(g);
+        g.connect(ctx.destination);
+
         const now = ctx.currentTime;
 
         if (type === 'error' || type === 'duplicate') {
-            osc.frequency.setValueAtTime(300, now);
-            g.gain.setValueAtTime(0, now);
-            g.gain.setValueAtTime(0.6, now);
-            g.gain.setValueAtTime(0, now + 0.10);
-            g.gain.setValueAtTime(0.6, now + 0.16);
-            g.gain.setValueAtTime(0, now + 0.26);
+
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(120, now); 
+            
+            // Einfacher Doppel-Piep (An-Aus-An-Aus)
+            g.gain.setValueAtTime(0.4, now);        // Start laut
+            g.gain.setValueAtTime(0, now + 0.12);   // Aus
+            g.gain.setValueAtTime(0.5, now + 0.18); // Wieder an
+            g.gain.setValueAtTime(0, now + 0.30);   // Endgültig aus
+            
+            osc.start(now);
+            osc.stop(now + 0.35);
             triggerHaptic('error');
         } else {
-            osc.frequency.setValueAtTime(880, now);
-            g.gain.setValueAtTime(0.5, now);
+            // ERFOLG: Hoher, klarer Piep
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1100, now);
+            g.gain.setValueAtTime(0.3, now);
+            g.gain.linearRampToValueAtTime(0, now + 0.3);
+            
+            osc.start(now);
+            osc.stop(now + 0.3);
             triggerHaptic('success');
         }
-        osc.connect(g);
-        g.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + (type === 'error' ? 0.28 : 0.15));
-    } catch (e) { }
+    } catch (e) {
+        console.error("Audio Error", e);
+    }
 }
 
 function showToast(title, message, type = 'success') {
@@ -220,14 +247,14 @@ function showToast(title, message, type = 'success') {
 /* =================================== */
 /*      Daten & Tabellen-Management    */
 /* =================================== */
-function processScannedCode(scannedCode, barcodeFormat = 'MANUAL') {
+function processScannedCode(scannedCode) {
     if (!scannedCode) return;
     const cleanCode = String(scannedCode).trimEnd().toUpperCase();
 
     // Prüfen, ob es eine BIN ID ist
     if (isValidBinId(cleanCode)) {
-        setActiveBinId(cleanCode.toUpperCase(), barcodeFormat);
-        showToast('Erfolg', `BIN ID gesetzt: ${cleanCode} (${barcodeFormat})`);
+        setActiveBinId(cleanCode.toUpperCase());
+        showToast('Erfolg', `BIN ID gesetzt: ${cleanCode}`);
         playBeep();
         if (manualInput) manualInput.value = '';
         return;
@@ -250,9 +277,7 @@ function processScannedCode(scannedCode, barcodeFormat = 'MANUAL') {
         id: Date.now().toString(),
         timestamp: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         binId: activeBinId,
-        binFormat: activeBinFormat, // Format der BIN ID
         sn: cleanCode,
-        snFormat: barcodeFormat,     // Format der SN
         isDuplicate: isDuplicate
     };
 
@@ -265,7 +290,7 @@ function processScannedCode(scannedCode, barcodeFormat = 'MANUAL') {
         showToast('Hinweis', `SN ${cleanCode} ist eine Dublette!`, 'error');
     } else {
         playBeep('success');
-        showToast('Erfolg', `SN erfasst: ${cleanCode} (${barcodeFormat})`);
+        showToast('Erfolg', `SN erfasst: ${cleanCode}`);
     }
 }
 
@@ -275,7 +300,7 @@ function renderTable() {
     scanCountBadge.textContent = `${scanRecords.length} Scans`;
 
     if (scanRecords.length === 0) {
-        scanTableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500 text-xs italic">Noch keine Scans vorhanden.</td></tr>`;
+        scanTableBody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500 text-xs italic">Noch keine Scans vorhanden.</td></tr>`;
         return;
     }
 
@@ -292,9 +317,7 @@ function renderTable() {
         tr.innerHTML = `
             <td class="p-3 text-xs ${isDup ? 'text-red-200' : 'text-slate-400'}">${record.timestamp}</td>
             <td class="p-3 ${isDup ? 'text-white font-bold' : 'text-amber-400 font-bold'}">${escapeHtml(record.binId)}</td>
-            <td class="p-3 text-xs text-slate-400 font-mono">${escapeHtml(record.binFormat || 'MANUAL')}</td>
             <td class="p-3 font-semibold text-white">${escapeHtml(record.sn)}</td>
-            <td class="p-3 text-xs text-slate-400 font-mono">${escapeHtml(record.snFormat || 'MANUAL')}</td>
             <td class="p-3 text-right">
                 <button onclick="deleteRecord('${record.id}')" class="text-xs text-rose-300 p-1 rounded hover:bg-rose-900/60">🗑️</button>
             </td>
@@ -339,15 +362,10 @@ function startCamera() {
                 }
                 if (!inside) return;
             }
-            // In der startCamera() Funktion beim erfolgreichen Scan:
             if (result.getText() !== lastScannedCode) {
                 lastScannedCode = result.getText();
-
-                // Format des Barcodes ermitteln (z.B. CODE_128, CODE_39, QR_CODE etc.)
-                const rawFormat = result.getBarcodeFormat();
-                const formatName = typeof rawFormat === 'number' ? ZXing.BarcodeFormat[rawFormat] : String(rawFormat);
-
-                processScannedCode(lastScannedCode, formatName);
+                // Verarbeitet den Code ohne Format-Information
+                processScannedCode(lastScannedCode);
 
                 canProcessScan = false;
                 clearTimeout(scanDebounceTimer);
@@ -362,8 +380,6 @@ function startCamera() {
         document.getElementById('scanButtonContainer').classList.remove('hidden');
         videoContainer.classList.add('camera-fullscreen-mode');
         document.body.classList.add('overflow-hidden');
-        document.getElementById('closeFullscreenBtn').classList.remove('hidden');
-        document.getElementById('toggleCameraBtn').classList.add('hidden');
     }).catch(e => showToast('Kamerafehler', 'Zugriff fehlgeschlagen.', 'error'));
 }
 
@@ -376,9 +392,27 @@ function stopCamera() {
     document.getElementById('scanButtonContainer').classList.add('hidden');
     videoContainer.classList.remove('camera-fullscreen-mode');
     document.body.classList.remove('overflow-hidden');
-    document.getElementById('closeFullscreenBtn').classList.add('hidden');
     document.getElementById('toggleCameraBtn').classList.remove('hidden');
 }
+
+/* ==================================== */
+/*   HARDWARE VOLUME BUTTON SCANNER     */
+/* ==================================== */
+window.addEventListener('keydown', (e) => {
+    // Moderner Standard-Check für Volume Down (Android / MDE-Hardwaretasten)
+    const isVolumeDown = e.key === 'AudioVolumeDown' || e.code === 'AudioVolumeDown';
+
+    if (isVolumeDown) {
+        // Nur auslösen, wenn die Kamera im Vollbildmodus aktiv ist
+        if (isCameraActive) {
+            e.preventDefault(); // Verhindert das Verändern der Systemlautstärke
+            const captureBtn = document.getElementById('captureScanBtn');
+            if (captureBtn && !captureBtn.closest('.hidden')) {
+                captureBtn.click();
+            }
+        }
+    }
+});
 
 /* ================================= */
 /*           HTML BUILDER            */
@@ -421,16 +455,16 @@ function buildExportHtml(records) {
 /*     UI-EVENT-LISTENER & INITIALISIERUNG    */
 /* ========================================== */
 
-// Profilverwaltung (mit dynamischem Hinzufügen/Entfernen von 'flex')
+// Profilverwaltung
 function openProfileModal() {
     profileEmailInput.value = userEmail;
     profileModal.classList.remove('hidden');
-    profileModal.classList.add('flex'); // <--- Bringt das Modal perfekt in die Mitte
+    profileModal.classList.add('flex');
 }
 
 function closeProfileModal() {
     profileModal.classList.add('hidden');
-    profileModal.classList.remove('flex'); // <--- Nimmt es beim Schließen wieder weg
+    profileModal.classList.remove('flex');
 }
 
 settingsBtn?.addEventListener('click', openProfileModal);
@@ -449,31 +483,40 @@ function showOverview() {
     if (container) {
         container.innerHTML = '';
         const iframe = document.createElement('iframe');
-        // scrolling="no" verhindert interne Scrollbalken
         iframe.setAttribute('scrolling', 'no');
         iframe.className = 'w-full border-0 bg-white overflow-hidden';
         iframe.srcdoc = buildExportHtml(scanRecords);
-
-        // Magie für die Höhe: Setzt die Iframe-Höhe exakt auf den Content
         iframe.onload = () => {
             setTimeout(() => {
                 try {
                     const height = iframe.contentWindow.document.body.scrollHeight;
                     iframe.style.height = (height + 50) + 'px';
-                } catch (e) { console.error("Iframe Height Error", e); }
+                } catch (e) { }
             }, 100);
         };
         container.appendChild(iframe);
     }
-    document.getElementById('mainAppView').classList.add('hidden');
-    document.getElementById('overviewView').classList.remove('hidden');
+    
+    // Umschalten der Ansicht
+    if (overviewView) {
+        overviewView.classList.remove('hidden');
+        overviewView.classList.add('flex');
+    }
+    if (mainAppView) {
+        mainAppView.classList.add('hidden');
+    }
     window.scrollTo(0, 0);
 }
 
 exportViewBtn?.addEventListener('click', () => scanRecords.length ? showOverview() : showToast('Fehler', 'Keine Daten!', 'error'));
 document.getElementById('backToAppBtn')?.addEventListener('click', () => {
-    document.getElementById('overviewView').classList.add('hidden');
-    document.getElementById('mainAppView').classList.remove('hidden');
+    if (overviewView) {
+        overviewView.classList.add('hidden');
+        overviewView.classList.remove('flex');
+    }
+    if (mainAppView) {
+        mainAppView.classList.remove('hidden');
+    }
 });
 
 // Buttons
@@ -488,7 +531,7 @@ document.getElementById('captureScanBtn')?.addEventListener('click', () => {
 manualInputForm?.addEventListener('submit', (e) => {
     e.preventDefault();
     if (manualInput.value) { 
-        processScannedCode(manualInput.value, 'MANUAL');
+        processScannedCode(manualInput.value);
         manualInput.value = ''; 
         setTimeout(() => manualInput.focus(), 100); 
     }
@@ -497,11 +540,11 @@ manualInputForm?.addEventListener('submit', (e) => {
 clearBtn?.addEventListener('click', () => {
     if (scanRecords.length && confirm('Wirklich alle Scans löschen?')) {
         scanRecords = []; activeBinId = null; persistData(); refreshAppState();
-        showToast('Geleert', 'Alle Daten wurden zurückgesetzt.', 'info');
+        showToast('Geleert', 'Alles zurückgesetzt.', 'info');
     }
 });
 
-// E-Mail & Cross-Platform Export (Hybrid: Download + mailto:)
+// E-Mail & Export (Optimiert für iOS & PC)
 sendEmailBtn?.addEventListener('click', () => {
     const t = scanRecords.length;
     if (!t) return showToast('Fehler', 'Keine Daten!', 'error');
@@ -514,22 +557,36 @@ sendEmailBtn?.addEventListener('click', () => {
     const { dateCode, dateDotted, timeCode } = getFormattedTimestamp();
     const fN = `PutAway_${dateCode}_${timeCode}.html`;
     const sbj = `PutAway - ${dateDotted} (${t} Scans)`;
-    const bdy = `Hallo,\n\nanbei die Export-Datei (${t} Scans) mit interaktiver Kopier-Funktion für die Umbuchung.\n\nViele Grüße`;
+    
+    const bodyLines = [
+        "Hallo,",
+        "",
+        `anbei die Export-Datei (${t} Scans) mit interaktiver Kopier-Funktion für die Umbuchung.`,
+        "",
+        "Viele Grüße"
+    ];
+    const bodyText = bodyLines.join('\n');
+
     const h = buildExportHtml(scanRecords);
 
-    // 1. HTML-Datei auf dem Handy / PC lokal zum Download anbieten
+    // 1. DOWNLOAD
     const bl = new Blob([h], { type: 'text/html;charset=utf-8' });
     const lnk = document.createElement('a');
     lnk.href = URL.createObjectURL(bl);
     lnk.download = fN;
+    document.body.appendChild(lnk);
     lnk.click();
+    document.body.removeChild(lnk);
 
-    // 2. E-Mail-Programm mit vorausgefülltem Empfänger öffnen (0.5 Sek. verzögert für sauberen Download)
+    // 2. E-MAIL ÖFFNEN
     setTimeout(() => {
-        window.location.href = `mailto:${encodeURIComponent(userEmail)}?subject=${encodeURIComponent(sbj)}&body=${encodeURIComponent(bdy)}`;
-    }, 500);
+        const mailLink = document.createElement('a');
+        const mailtoUrl = `mailto:${userEmail}?subject=${encodeURIComponent(sbj)}&body=${encodeURIComponent(bodyText)}`;
+        mailLink.href = mailtoUrl;
+        mailLink.click();
+    }, 1000);
 
-    showToast('Export', 'Download & Mail App!', 'success');
+    showToast('Export', 'Download & Mail bereit!', 'success');
 });
 
 // Clipboard
@@ -541,30 +598,20 @@ copyClipboardBtn?.addEventListener('click', () => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(t).then(() => {
             showToast('Kopiert!', 'Daten in Zwischenablage.', 'success');
-        }).catch(() => {
-            fallbackCopyText(t);
-        });
-    } else {
-        fallbackCopyText(t);
-    }
+        }).catch(() => fallbackCopyText(t));
+    } else { fallbackCopyText(t); }
 });
 
 function fallbackCopyText(text) {
     try {
         const textarea = document.createElement('textarea');
         textarea.value = text;
-        textarea.style.position = 'fixed'; // Verhindert unerwünschtes Scrollen
+        textarea.style.position = 'fixed';
         document.body.appendChild(textarea);
         textarea.focus();
         textarea.select();
-        const successful = document.execCommand('copy');
+        document.execCommand('copy');
         document.body.removeChild(textarea);
-        if (successful) {
-            showToast('Kopiert!', 'Daten in Zwischenablage.', 'success');
-        } else {
-            showToast('Fehler', 'Kopieren fehlgeschlagen.', 'error');
-        }
-    } catch (err) {
-        showToast('Fehler', 'Zwischenablage nicht unterstützt.', 'error');
-    }
+        showToast('Kopiert!', 'Daten in Zwischenablage.', 'success');
+    } catch (err) { showToast('Fehler', 'Nicht unterstützt.', 'error'); }
 }
